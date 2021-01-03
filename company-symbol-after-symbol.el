@@ -24,7 +24,7 @@
 
 (defgroup company-symbol-after-symbol nil
   "Simple-minded omni completion engine for company."
-  :group 'company-dwim)
+  :group 'company-symbol-after-symbol)
 
 (defcustom company-symbol-after-symbol-complete-after-space nil
   "When non-nil, complete spacce-delimited symbols. Otherwise, at
