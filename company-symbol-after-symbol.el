@@ -32,8 +32,8 @@ least one non-space character is required to start completon."
   :group 'company-symbol-after-symbol
   :type 'boolean)
 
-(defun company-symbol-after-symbol-search-candidates (last-symbol &optional cursor)
-  (let ((regex (concat (regexp-quote last-symbol) "[\s\t]*\\(\\_<.+?\\_>\\)"))
+(defun company-symbol-after-symbol-search-candidates (prefix &optional cursor)
+  (let ((regex (concat (regexp-quote prefix) "[\s\t]*\\(\\_<.+?\\_>\\)"))
         lst)
     (when cursor
       (save-excursion
