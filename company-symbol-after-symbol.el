@@ -19,6 +19,7 @@
 ;;         (goto-char (match-end 1)))
 ;;       lst)))
 
+(require 'company)
 (require 'cl-lib)
 
 (defun company-symbol-after-symbol-search-candidates (last-symbol &optional cursor)
@@ -35,15 +36,26 @@
         (push (match-string-no-properties 0) lst)))
     lst))
 
+(defvar company-symbol-after-symbol--candidates nil)
+
 (defun company-symbol-after-symbol (command &optional arg &rest ignored)
   (interactive (list 'interactive))
   (cl-case command
     (interactive (company-begin-backend 'company-symbol-after-symbol))
     (prefix (and (derived-mode-p 'prog-mode)
-                 (not (looking-back "\\_>" (1- (point))))
+                 (or company-symbol-after-symbol--candidates
+                     (not (looking-back "\\_>" (1- (point)))))
                  (looking-back "\\_<.+?\\_>.+?" (point-at-bol))
                  (match-string 0)))
     (duplicates t)
-    (candidates (company-symbol-after-symbol-search-candidates company-prefix (point)))))
+    (candidates
+     (or company-symbol-after-symbol--candidates
+         (setq company-symbol-after-symbol--candidates
+               (company-symbol-after-symbol-search-candidates company-prefix (point)))))))
+
+(defun company-symbol-after-symbol-finished (&optional _)
+  (setq company-symbol-after-symbol--candidates nil))
+
+(add-hook 'company-after-completion-hook 'company-symbol-after-symbol-finished)
 
 (provide 'company-symbol-after-symbol)
