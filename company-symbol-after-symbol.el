@@ -21,8 +21,8 @@
 
 (require 'cl-lib)
 
-(defun company-symbol-after-symbol-search-candidates (prefix &optional cursor)
-  (let ((regex (concat (regexp-quote prefix) "\\(\\_<.+?\\_>\\)"))
+(defun company-symbol-after-symbol-search-candidates (last-symbol &optional cursor)
+  (let ((regex (concat (regexp-quote last-symbol) "\\(\\_<.+?\\_>\\)"))
         lst)
     (when cursor
       (save-excursion
