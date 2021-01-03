@@ -22,6 +22,16 @@
 (require 'company)
 (require 'cl-lib)
 
+(defgroup company-symbol-after-symbol nil
+  "Simple-minded omni completion engine for company."
+  :group 'company-dwim)
+
+(defcustom company-symbol-after-symbol-complete-after-space nil
+  "When non-nil, complete spacce-delimited symbols. Otherwise, at
+least one non-space character is required to start completon."
+  :group 'company-symbol-after-symbol
+  :type 'boolean)
+
 (defun company-symbol-after-symbol-search-candidates (last-symbol &optional cursor)
   (let ((regex (concat (regexp-quote last-symbol) "\\(\\_<.+?\\_>\\)"))
         lst)
@@ -42,11 +52,14 @@
   (interactive (list 'interactive))
   (cl-case command
     (interactive (company-begin-backend 'company-symbol-after-symbol))
-    (prefix (and (derived-mode-p 'prog-mode)
-                 (or company-symbol-after-symbol--candidates
-                     (not (looking-back "\\_>" (1- (point)))))
-                 (looking-back "\\_<.+?\\_>.+?" (point-at-bol))
-                 (match-string 0)))
+    (prefix
+     (and (derived-mode-p 'prog-mode)
+          (or company-symbol-after-symbol--candidates
+              (not (looking-back
+                    (if company-symbol-after-symbol-complete-after-space "\\_>" "\\_>[\s\t\n]*")
+                    (point-at-bol))))
+          (looking-back "\\_<.+?\\_>.+?" (point-at-bol))
+          (match-string 0)))
     (duplicates t)
     (candidates
      (or company-symbol-after-symbol--candidates
