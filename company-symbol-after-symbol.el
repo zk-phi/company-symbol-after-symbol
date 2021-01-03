@@ -58,7 +58,7 @@ least one non-space character is required to start completon."
               (not (looking-back
                     (if company-symbol-after-symbol-complete-after-space "\\_>" "\\_>[\s\t\n]*")
                     (point-at-bol))))
-          (looking-back "\\_<.+?\\_>.+?" (point-at-bol))
+          (looking-back "\\_<.+?\\_>[^\n]+?" (point-at-bol))
           (match-string 0)))
     (duplicates t)
     (candidates
