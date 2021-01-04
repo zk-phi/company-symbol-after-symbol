@@ -41,6 +41,8 @@ dropped."
   :group 'company-symbol-after-symbol
   :type 'number)
 
+;; ---- search through buffer
+
 (defun company-symbol-after-symbol-search-candidates (prefix &optional cursor)
   (let ((regex (concat (regexp-quote prefix) "[\s\t]*\\(\\_<.+?\\_>\\)"))
         lst)
@@ -54,6 +56,8 @@ dropped."
       (while (search-forward-regexp regex nil t)
         (push (match-string-no-properties 0) lst)))
     lst))
+
+;; ---- filter candidates
 
 (defun company-symbol-after-symbol-filter-by-occurrences (sorted-list threshold)
   (when sorted-list
@@ -69,6 +73,8 @@ dropped."
                  (pop sorted-list))
                (setq current-count 1))))
       candidates)))
+
+;; ---- interface
 
 (defvar company-symbol-after-symbol--candidates nil)
 
