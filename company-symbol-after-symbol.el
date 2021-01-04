@@ -28,7 +28,7 @@
   "Simple-minded omni completion engine for company."
   :group 'company-symbol-after-symbol)
 
-(defcustom company-symbol-after-symbol-complete-after-space nil
+(defcustom company-symbol-after-symbol-complete-after-space t
   "When non-nil, complete spacce-delimited symbols. Otherwise, at
 least one non-space character is required to start completon."
   :group 'company-symbol-after-symbol
