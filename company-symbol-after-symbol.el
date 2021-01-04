@@ -34,11 +34,12 @@ least one non-space character is required to start completon."
   :group 'company-symbol-after-symbol
   :type 'boolean)
 
-(defcustom company-symbol-after-symbol-same-buffer-occurrence-threshold 1
-  "Number of minimum ocurrences when filtering candidates in the
-current buffer."
+(defcustom company-symbol-after-symbol-threshold 0.05
+  "Threshold to filter candidates. When 0.05 for example, which
+is the defualt value, candidates which occupy less than 5% are
+dropped."
   :group 'company-symbol-after-symbol
-  :type 'integer)
+  :type 'number)
 
 (defun company-symbol-after-symbol-search-candidates (prefix &optional cursor)
   (let ((regex (concat (regexp-quote prefix) "[\s\t]*\\(\\_<.+?\\_>\\)"))
@@ -56,6 +57,7 @@ current buffer."
 
 (defun company-symbol-after-symbol-filter-by-occurrences (sorted-list threshold)
   (when sorted-list
+    (setq threshold (* threshold (length sorted-list)))
     (let ((current-count 1) candidates)
       (while sorted-list
         (cond ((and (cadr sorted-list) (string= (car sorted-list) (cadr sorted-list)))
@@ -91,7 +93,7 @@ current buffer."
           (setq company-symbol-after-symbol--candidates
                 (company-symbol-after-symbol-filter-by-occurrences
                  (sort candidates 'string<)
-                 company-symbol-after-symbol-same-buffer-occurrence-threshold)))))))
+                 company-symbol-after-symbol-threshold)))))))
 
 (defun company-symbol-after-symbol-finished (&optional _)
   (setq company-symbol-after-symbol--candidates nil))
