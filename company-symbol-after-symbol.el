@@ -54,7 +54,7 @@ current buffer."
         (push (match-string-no-properties 0) lst)))
     lst))
 
-(defun company-symbol-after-symbol-filter-by-ocurrences (sorted-list threshold)
+(defun company-symbol-after-symbol-filter-by-occurrences (sorted-list threshold)
   (when sorted-list
     (let ((current-count 1) candidates)
       (while sorted-list
@@ -89,7 +89,7 @@ current buffer."
      (or company-symbol-after-symbol--candidates
          (let ((candidates (company-symbol-after-symbol-search-candidates company-prefix (point))))
           (setq company-symbol-after-symbol--candidates
-                (company-symbol-after-symbol-filter-by-ocurrences
+                (company-symbol-after-symbol-filter-by-occurrences
                  (sort candidates 'string<)
                  company-symbol-after-symbol-same-buffer-occurrence-threshold)))))))
 
