@@ -83,8 +83,7 @@ dropped."
   (cl-case command
     (interactive (company-begin-backend 'company-symbol-after-symbol))
     (prefix
-     (and (derived-mode-p 'prog-mode)
-          (or company-symbol-after-symbol--candidates
+     (and (or company-symbol-after-symbol--candidates
               (not (looking-back
                     (if company-symbol-after-symbol-complete-after-space
                         "\\(\\sw\\|\\s_\\)"
