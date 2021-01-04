@@ -28,13 +28,13 @@
   "Simple-minded omni completion engine for company."
   :group 'company-symbol-after-symbol)
 
-(defcustom company-symbol-after-symbol-complete-after-space t
+(defcustom company-symbol-after-symbol-complete-after-space nil
   "When non-nil, complete spacce-delimited symbols. Otherwise, at
 least one non-space character is required to start completon."
   :group 'company-symbol-after-symbol
   :type 'boolean)
 
-(defcustom company-symbol-after-symbol-same-buffer-occurrence-threshold 2
+(defcustom company-symbol-after-symbol-same-buffer-occurrence-threshold 1
   "Number of minimum ocurrences when filtering candidates in the
 current buffer."
   :group 'company-symbol-after-symbol
