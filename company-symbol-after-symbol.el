@@ -1,3 +1,6 @@
+;; TODO: thresholding
+;; TODO: cache candidates across sessions
+
 ;; (defvar-local company-symbol-after-symbol-table nil)
 ;;
 ;; (defun company-symbol-after-symbol-add-symbol-to-table (before after)
