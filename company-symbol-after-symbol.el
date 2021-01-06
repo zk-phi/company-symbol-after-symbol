@@ -40,6 +40,15 @@ current buffer."
   :group 'company-symbol-after-symbol
   :type 'integer)
 
+(defcustom company-symbol-after-symbol-continue-commands
+  '(company-complete-common
+    company-complete-common-or-cycle
+    company-indent-or-complete-common
+    company-dwim)
+  "List of commands after which completion should be continued."
+  :group 'company-symbol-after-symbol
+  :type '(list symbol))
+
 ;; ---- search through buffer
 
 (defun company-symbol-after-symbol-search-candidates (prefix &optional cursor)
@@ -81,7 +90,8 @@ current buffer."
   (cl-case command
     (interactive (company-begin-backend 'company-symbol-after-symbol))
     (prefix
-     (and (or company-symbol-after-symbol--candidates
+     (and (or (and (memq last-command company-symbol-after-symbol-continue-commands)
+                   company-symbol-after-symbol--candidates)
               (not (looking-back
                     (if company-symbol-after-symbol-complete-after-space
                         "\\(\\sw\\|\\s_\\)"
