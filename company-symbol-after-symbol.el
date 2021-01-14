@@ -1,4 +1,5 @@
 ;; TODO: cache candidates across sessions
+;; TODO: 3-gram completion ?
 
 ;; (defvar-local company-symbol-after-symbol-table nil)
 ;;
