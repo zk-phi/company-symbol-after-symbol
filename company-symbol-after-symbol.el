@@ -35,11 +35,12 @@ least one non-space character is required to start completon."
   :group 'company-symbol-after-symbol
   :type 'boolean)
 
-(defcustom company-symbol-after-symbol-same-buffer-occurrence-threshold 1
-  "Number of minimum ocurrences when filtering candidates in the
-current buffer."
+(defcustom company-symbol-after-symbol-threhold 0.05
+  "Threshold to filter search results. When 0.05 for example,
+which is the defualt value, completion candidates which occupy
+less than 5% among the results are dropped."
   :group 'company-symbol-after-symbol
-  :type 'integer)
+  :type 'number)
 
 (defcustom company-symbol-after-symbol-continue-commands
   '(company-complete-common
@@ -70,6 +71,7 @@ current buffer."
 
 (defun company-symbol-after-symbol-filter-by-occurrences (sorted-list threshold)
   (when sorted-list
+    (setq threshold (* threshold (length sorted-list)))
     (let ((current-count 1) candidates)
       (while sorted-list
         (cond ((and (cadr sorted-list) (string= (car sorted-list) (cadr sorted-list)))
@@ -104,10 +106,9 @@ current buffer."
     (candidates
      (or company-symbol-after-symbol--candidates
          (let ((candidates (company-symbol-after-symbol-search-candidates company-prefix (point))))
-          (setq company-symbol-after-symbol--candidates
-                (company-symbol-after-symbol-filter-by-occurrences
-                 (sort candidates 'string<)
-                 company-symbol-after-symbol-same-buffer-occurrence-threshold)))))))
+           (setq company-symbol-after-symbol--candidates
+                 (company-symbol-after-symbol-filter-by-occurrences
+                  (sort candidates 'string<) company-symbol-after-symbol-threhold)))))))
 
 (defun company-symbol-after-symbol-finished (&optional _)
   (setq company-symbol-after-symbol--candidates nil))
