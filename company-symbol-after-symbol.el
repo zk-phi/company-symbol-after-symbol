@@ -29,6 +29,12 @@
   "Simple-minded omni completion engine for company."
   :group 'company-symbol-after-symbol)
 
+(defcustom company-symbol-after-symbol-enable-3-gram t
+  "When non-nil, complete 3-gram candidates if two or more
+symbols are before the cursor."
+  :group 'company-symbol-after-symbol
+  :type 'boolean)
+
 (defcustom company-symbol-after-symbol-complete-after-space nil
   "When non-nil, complete spacce-delimited symbols. Otherwise, at
 least one non-space character is required to start completon."
@@ -100,7 +106,9 @@ less than 5% among the results are dropped."
                         "\\(\\sw\\|\\s_\\)"
                       "\\(\\sw\\|\\s_\\)[\s\t]*")
                     (point-at-bol))))
-          (looking-back "\\_<.+?\\_>[^\n]+?" (point-at-bol))
+          (or (and company-symbol-after-symbol-enable-3-gram
+                   (looking-back "\\_<.+?\\_>[^\n]+?\\_<.+?\\_>[^\n]+?" (point-at-bol)))
+              (looking-back "\\_<.+?\\_>[^\n]+?" (point-at-bol)))
           (match-string 0)))
     (duplicates t)
     (candidates
