@@ -54,6 +54,8 @@ least one non-space character is required to start completion."
 ;; ---- search through buffer
 
 (defun company-symbol-after-symbol-search-regex (regex &optional subexp cursor)
+  "Search all occurrences of REGEX through the buffer. If CURSOR
+is specified, search before/after the point separately."
   (let (lst)
     (when cursor
       (save-excursion
