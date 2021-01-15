@@ -30,7 +30,7 @@
 
 (defcustom company-symbol-after-symbol-complete-after-space nil
   "When non-nil, complete spacce-delimited symbols. Otherwise, at
-least one non-space character is required to start completon."
+least one non-space character is required to start completion."
   :group 'company-symbol-after-symbol
   :type 'boolean)
 
