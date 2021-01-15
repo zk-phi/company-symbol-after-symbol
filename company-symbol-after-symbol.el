@@ -1,5 +1,4 @@
 ;; TODO: cache candidates across sessions
-;; TODO: 3-gram completion ?
 
 ;; (defvar-local company-symbol-after-symbol-table nil)
 ;;
@@ -93,19 +92,26 @@ less than 5% among the results are dropped."
   (cl-case command
     (interactive (company-begin-backend 'company-symbol-after-symbol))
     (prefix
-     (and (or (and (memq this-command company-symbol-after-symbol-continue-commands)
-                   company-symbol-after-symbol--candidates)
-              (not (looking-back
-                    (if company-symbol-after-symbol-complete-after-space
-                        "\\(\\sw\\|\\s_\\)"
-                      "\\(\\sw\\|\\s_\\)[\s\t]*")
-                    (point-at-bol))))
-          (cond ((looking-back "\\_<.+?\\_>[^\n]+?\\_<.+?\\_>[^\n]+?" (point-at-bol))
-                 (setq company-symbol-after-symbol--bolp nil)
-                 (match-string 0))
-                ((looking-back "\\_<.+?\\_>[^\n]+?" (point-at-bol))
-                 (setq company-symbol-after-symbol--bolp t)
-                 (match-string 0)))))
+     (when (or
+            ;; if completion is already started, continue completion as long as
+            ;; the current command is listed in "continue-commands"
+            (and (memq this-command company-symbol-after-symbol-continue-commands)
+                 company-symbol-after-symbol--candidates)
+            ;; otherwise, start completion iff the point is NOT immediately after a symbol
+            ;; (at least one non-symbol character is required to start completion)
+            (not (looking-back
+                  (if company-symbol-after-symbol-complete-after-space
+                      "\\(\\sw\\|\\s_\\)"
+                    "\\(\\sw\\|\\s_\\)[\s\t]*")
+                  (point-at-bol))))
+       ;; capture at most two symbols before the cursor
+       ;; (except for a currently-completing symbol)
+       (cond ((looking-back "\\_<.+?\\_>[^\n]+?\\_<.+?\\_>[^\n]+?\\(\\sw\\|\\s_\\)*" (point-at-bol))
+              (setq company-symbol-after-symbol--bolp nil)
+              (match-string 0))
+             ((looking-back "\\_<.+?\\_>[^\n]+?\\(\\sw\\|\\s_\\)*" (point-at-bol))
+              (setq company-symbol-after-symbol--bolp t)
+              (match-string 0)))))
     (duplicates t)
     (candidates
      (or company-symbol-after-symbol--candidates
