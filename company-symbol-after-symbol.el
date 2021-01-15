@@ -99,7 +99,7 @@ less than 5% among the results are dropped."
   (cl-case command
     (interactive (company-begin-backend 'company-symbol-after-symbol))
     (prefix
-     (and (or (and (memq last-command company-symbol-after-symbol-continue-commands)
+     (and (or (and (memq this-command company-symbol-after-symbol-continue-commands)
                    company-symbol-after-symbol--candidates)
               (not (looking-back
                     (if company-symbol-after-symbol-complete-after-space
