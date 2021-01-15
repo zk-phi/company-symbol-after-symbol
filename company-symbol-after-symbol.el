@@ -34,10 +34,11 @@ least one non-space character is required to start completion."
   :group 'company-symbol-after-symbol
   :type 'boolean)
 
-(defcustom company-symbol-after-symbol-threhold 0.05
-  "Threshold to filter search results. When 0.05 for example,
-which is the defualt value, completion candidates which occupy
-less than 5% among the results are dropped."
+(defcustom company-symbol-after-symbol-same-buffer-threshold 0.1
+  "Threshold to filter search results in the current buffer. When
+ 0.05 for example, which is the defualt value, completion
+ candidates which occupy less than 5% among the results are
+ dropped."
   :group 'company-symbol-after-symbol
   :type 'number)
 
@@ -123,7 +124,7 @@ less than 5% among the results are dropped."
                  (point))))
            (setq company-symbol-after-symbol--candidates
                  (company-symbol-after-symbol-filter-by-occurrences
-                  (sort candidates 'string<) company-symbol-after-symbol-threhold)))))))
+                  (sort candidates 'string<) company-symbol-after-symbol-same-buffer-threshold)))))))
 
 (defun company-symbol-after-symbol-finished (&optional _)
   (setq company-symbol-after-symbol--candidates nil))
