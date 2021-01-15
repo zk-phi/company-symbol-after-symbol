@@ -126,7 +126,8 @@ is specified, search before/after the point separately."
                  (point))))
            (setq company-symbol-after-symbol--candidates
                  (company-symbol-after-symbol-filter-by-occurrences
-                  (sort candidates 'string<) company-symbol-after-symbol-same-buffer-threshold)))))))
+                  (sort candidates 'string<)
+                  company-symbol-after-symbol-same-buffer-threshold)))))))
 
 (defun company-symbol-after-symbol-finished (&optional _)
   (setq company-symbol-after-symbol--candidates nil))
