@@ -29,12 +29,6 @@
   "Simple-minded omni completion engine for company."
   :group 'company-symbol-after-symbol)
 
-(defcustom company-symbol-after-symbol-enable-3-gram t
-  "When non-nil, complete 3-gram candidates if two or more
-symbols are before the cursor."
-  :group 'company-symbol-after-symbol
-  :type 'boolean)
-
 (defcustom company-symbol-after-symbol-complete-after-space nil
   "When non-nil, complete spacce-delimited symbols. Otherwise, at
 least one non-space character is required to start completon."
@@ -59,18 +53,17 @@ less than 5% among the results are dropped."
 
 ;; ---- search through buffer
 
-(defun company-symbol-after-symbol-search-candidates (prefix &optional cursor)
-  (let ((regex (concat (regexp-quote prefix) "[\s\t]*\\(\\_<.+?\\_>\\)"))
-        lst)
+(defun company-symbol-after-symbol-search-regex (regex &optional subexp cursor)
+  (let (lst)
     (when cursor
       (save-excursion
         (goto-char cursor)
         (while (search-backward-regexp regex nil t)
-          (push (match-string-no-properties 0) lst))))
+          (push (match-string-no-properties (or subexp 0)) lst))))
     (save-excursion
       (goto-char (or cursor (point-min)))
       (while (search-forward-regexp regex nil t)
-        (push (match-string-no-properties 0) lst)))
+        (push (match-string-no-properties (or subexp 0)) lst)))
     lst))
 
 ;; ---- filter candidates
@@ -93,6 +86,7 @@ less than 5% among the results are dropped."
 ;; ---- interface
 
 (defvar company-symbol-after-symbol--candidates nil)
+(defvar company-symbol-after-symbol--bolp nil)
 
 (defun company-symbol-after-symbol (command &optional arg &rest ignored)
   (interactive (list 'interactive))
@@ -106,14 +100,21 @@ less than 5% among the results are dropped."
                         "\\(\\sw\\|\\s_\\)"
                       "\\(\\sw\\|\\s_\\)[\s\t]*")
                     (point-at-bol))))
-          (or (and company-symbol-after-symbol-enable-3-gram
-                   (looking-back "\\_<.+?\\_>[^\n]+?\\_<.+?\\_>[^\n]+?" (point-at-bol)))
-              (looking-back "\\_<.+?\\_>[^\n]+?" (point-at-bol)))
-          (match-string 0)))
+          (cond ((looking-back "\\_<.+?\\_>[^\n]+?\\_<.+?\\_>[^\n]+?" (point-at-bol))
+                 (setq company-symbol-after-symbol--bolp nil)
+                 (match-string 0))
+                ((looking-back "\\_<.+?\\_>[^\n]+?" (point-at-bol))
+                 (setq company-symbol-after-symbol--bolp t)
+                 (match-string 0)))))
     (duplicates t)
     (candidates
      (or company-symbol-after-symbol--candidates
-         (let ((candidates (company-symbol-after-symbol-search-candidates company-prefix (point))))
+         (let ((candidates
+                (company-symbol-after-symbol-search-regex
+                 (concat (and company-symbol-after-symbol--bolp "^\\W*")
+                         "\\(" (regexp-quote company-prefix) "[\s\t]*\\_<.+?\\_>\\)")
+                 1
+                 (point))))
            (setq company-symbol-after-symbol--candidates
                  (company-symbol-after-symbol-filter-by-occurrences
                   (sort candidates 'string<) company-symbol-after-symbol-threhold)))))))
