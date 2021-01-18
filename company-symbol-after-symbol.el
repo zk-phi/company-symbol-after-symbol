@@ -1,26 +1,5 @@
 ;; TODO: cache candidates across sessions
 
-;; (defvar-local company-symbol-after-symbol-table nil)
-;;
-;; (defun company-symbol-after-symbol-add-symbol-to-table (before after)
-;;   (let ((lst (radix-tree-lookup company-symbol-after-symbol-table before)))
-;;     (if lst
-;;         (push after (cdr lst))
-;;       (setq company-symbol-after-symbol-table
-;;             (radix-tree-insert company-symbol-after-symbol-table before (list t after))))))
-;;
-;; (defun company-symbol-after-symbol-get-candidates (before)
-;;   (cdr (radix-tree-lookup company-symbol-after-symbol-table before)))
-;;
-;; (defun company-symbol-after-symbol-update-cache ()
-;;   (save-excursion
-;;     (goto-char (point-min))
-;;     (let (lst)
-;;       (while (search-forward-regexp "\\(\\_<.+?\\_>.*?\\)\\(\\_<.+?\\_>\\)" nil t)
-;;         (company-symbol-after-symbol-add-symbol-to-table (match-string 1) (match-string 2))
-;;         (goto-char (match-end 1)))
-;;       lst)))
-
 (require 'company)
 (require 'cl-lib)
 
