@@ -100,7 +100,7 @@ is specified, search before/after the point separately."
          (let ((candidates
                 (company-symbol-after-symbol-search-regex
                  (concat (and company-symbol-after-symbol--bolp "^\\W*")
-                         "\\(" (regexp-quote company-prefix) "[\s\t]*\\_<.+?\\_>\\)")
+                         "\\(" (regexp-quote company-prefix) "\\_<.+?\\_>\\)")
                  1
                  (point))))
            (setq company-symbol-after-symbol--candidates
