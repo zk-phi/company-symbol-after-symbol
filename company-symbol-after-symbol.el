@@ -13,6 +13,12 @@ least one non-space character is required to start completion."
   :group 'company-symbol-after-symbol
   :type 'boolean)
 
+(defcustom company-symbol-after-symbol-complete-spaces nil
+  "When non-nil, complete preceding spaces before the symbol to
+be completed too."
+  :group 'company-symbol-after-symbol
+  :type 'boolean)
+
 (defcustom company-symbol-after-symbol-same-buffer-threshold 0.1
   "Threshold to filter search results in the current buffer. When
  0.05 for example, which is the defualt value, completion
@@ -123,12 +129,13 @@ buffer."
       (setq line (cons "" (cons "" line)))
       (while (cddddr line)
         (cl-destructuring-bind (symbol1 delimiter1 symbol2 delimiter2 suffix . _) line
-          ;; move trailing spaces (except for one) in prefix to suffix
-          ;; ("foo bar   " . "baz") -> ("foo bar " . "  baz")
-          ;; ("foo bar ( " . "baz") -> ("foo bar (" . " baz")
-          (when (string-match "^\\([\s\t]\\|.*[^\s\t]\\)\\([\s\t]+\\)$" delimiter2)
-            (setq suffix (concat (match-string 2 delimiter2) suffix))
-            (setq delimiter2 (match-string 1 delimiter2)))
+          (when company-symbol-after-symbol-complete-spaces
+            ;; move trailing spaces (except for one) in prefix to suffix
+            ;; ("foo bar   " . "baz") -> ("foo bar " . "  baz")
+            ;; ("foo bar ( " . "baz") -> ("foo bar (" . " baz")
+            (when (string-match "^\\([\s\t]\\|.*[^\s\t]\\)\\([\s\t]+\\)$" delimiter2)
+              (setq suffix (concat (match-string 2 delimiter2) suffix))
+              (setq delimiter2 (match-string 1 delimiter2))))
           (push (cons (concat symbol1 delimiter1 symbol2 delimiter2) suffix) candidates))
         (setq line (cddr line))))
     candidates))
@@ -167,7 +174,10 @@ buffer."
   (let ((candidates
          (company-symbol-after-symbol-search-regex
           (concat (and company-symbol-after-symbol--bolp "^\\W*")
-                  "\\(" (regexp-quote prefix) "[\s\t]*\\_<.+?\\_>\\)")
+                  "\\(" (regexp-quote prefix)
+                  (if company-symbol-after-symbol-complete-spaces
+                      "[\s\t]*\\_<.+?\\_>\\)"
+                    "\\_<.+?\\_>\\)"))
           1
           (point))))
     (setq company-symbol-after-symbol--candidates
