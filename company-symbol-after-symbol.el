@@ -118,14 +118,18 @@ buffer."
                 (split-string (buffer-substring-no-properties (point-min) (point-max)) "\n")))
         candidates)
     (dolist (line lines)
-      ;; first symbol (2-gram)
-      (when (cddr line)
-        (push (cons (concat (car line) (cadr line)) (car (cddr line))) candidates))
-      ;; rest (3-gram)
+      ;; add an empty symbol, so that a symbol after the first symbol
+      ;; can be completed with 2-gram
+      (setq line (cons "" (cons "" line)))
       (while (cddddr line)
-        (push (cons (concat (car line) (cadr line) (caddr line) (cadddr line))
-                    (car (cddddr line)))
-              candidates)
+        (cl-destructuring-bind (symbol1 delimiter1 symbol2 delimiter2 suffix . _) line
+          ;; move trailing spaces (except for one) in prefix to suffix
+          ;; ("foo bar   " . "baz") -> ("foo bar " . "  baz")
+          ;; ("foo bar ( " . "baz") -> ("foo bar (" . " baz")
+          (when (string-match "^\\([\s\t]\\|.*[^\s\t]\\)\\([\s\t]+\\)$" delimiter2)
+            (setq suffix (concat (match-string 2 delimiter2) suffix))
+            (setq delimiter2 (match-string 1 delimiter2)))
+          (push (cons (concat symbol1 delimiter1 symbol2 delimiter2) suffix) candidates))
         (setq line (cddr line))))
     candidates))
 
@@ -163,7 +167,7 @@ buffer."
   (let ((candidates
          (company-symbol-after-symbol-search-regex
           (concat (and company-symbol-after-symbol--bolp "^\\W*")
-                  "\\(" (regexp-quote prefix) "\\_<.+?\\_>\\)")
+                  "\\(" (regexp-quote prefix) "[\s\t]*\\_<.+?\\_>\\)")
           1
           (point))))
     (setq company-symbol-after-symbol--candidates
