@@ -14,11 +14,10 @@ least one non-space character is required to start completion."
   :group 'company-symbol-after-symbol
   :type 'boolean)
 
-(defcustom company-symbol-after-symbol-same-buffer-threshold 0.1
-  "Threshold to filter search results in the current buffer. When
- 0.05 for example, which is the defualt value, completion
- candidates which occupy less than 5% among the results are
- dropped."
+(defcustom company-symbol-after-symbol-threshold 0.05
+  "Threshold to filter search results. When 0.05 for example,
+ which is the defualt value, completion candidates which occupy
+ less than 5% among the results are dropped."
   :group 'company-symbol-after-symbol
   :type 'number)
 
@@ -165,7 +164,7 @@ character, like \"foo (\" for example."
           (point))))
     (company-symbol-after-symbol-filter-by-occurrences
      (sort candidates 'string<)
-     company-symbol-after-symbol-same-buffer-threshold)))
+     company-symbol-after-symbol-threshold)))
 
 (defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 &optional prefix2)
   (company-symbol-after-symbol-update-cache-other-buffers)
@@ -175,7 +174,7 @@ character, like \"foo (\" for example."
           (company-symbol-after-symbol-tree-search
            (gethash major-mode company-symbol-after-symbol-cache nil)
            (cons (or prefix1 "") (if prefix2 (list prefix2) nil))
-           company-symbol-after-symbol-same-buffer-threshold)))
+           company-symbol-after-symbol-threshold)))
 
 (defun company-symbol-after-symbol-all-completions (prefix1 &optional prefix2)
   "Get all completions for given prefixes. If only PREFIX1 is
