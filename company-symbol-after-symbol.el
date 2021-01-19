@@ -1,3 +1,4 @@
+;;; -*- lexical-binding: t -*-
 ;; TODO: cache candidates across sessions
 
 (require 'company)
