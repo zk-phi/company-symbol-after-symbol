@@ -116,7 +116,7 @@ specified, filter as like
 buffer. Note that each symbols may combined with suffix
 character, like \"foo (\" for example."
   (let ((lines (mapcar
-                (lambda (line) (cdr (split-string line "\\_<")))
+                (lambda (line) (split-string line "\\_<"))
                 (split-string (buffer-substring-no-properties (point-min) (point-max)) "\n")))
         candidates)
     (dolist (line lines)
