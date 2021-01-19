@@ -22,6 +22,12 @@ least one non-space character is required to start completion."
   :group 'company-symbol-after-symbol
   :type 'number)
 
+(defcustom company-symbol-after-symbol-fallback-to-2gram t
+  "When non-nil, try to find 2-gram candidates, if no 3-gram
+  candidates found."
+  :group 'company-symbol-after-symbol
+  :type 'boolean)
+
 (defcustom company-symbol-after-symbol-continue-commands
   '(company-complete-common
     company-complete-common-or-cycle
@@ -67,43 +73,37 @@ is specified, search before/after the point separately."
 
 ;; ---- completion-tree
 
-(defun company-symbol-after-symbol-candidates-tree-empty ()
-  "Allocate an empty candidates-tree."
-  ;; cons[ocurrences, tree[symb, cons[ocurrences, nil]]]
+;; a completion-tree is:
+;; - cons[ocurrences, radix-tree[symbol, completion-tree]]
+
+(defun company-symbol-after-symbol-tree-empty ()
+  "Allocate an empty completion-tree."
   (cons 0 nil))
 
-(defun company-symbol-after-symbol-candidates-tree-insert (tree symbol)
-  "Insert item to a candidates-tree destructively."
-  (let ((cell (radix-tree-lookup (cdr tree) symbol)))
-    (if cell
-        (cl-incf (car cell))
-      (setcdr tree (radix-tree-insert (cdr tree) symbol (cons 1 nil)))))
-  (cl-incf (car tree)))
-
-(defun company-symbol-after-symbol-completion-tree-empty ()
-  "Allocate an empty completion-tree."
-  ;; cons[tree[prefix, candidates-tree], nil]
-  (cons nil nil))
-
-(defun company-symbol-after-symbol-completion-tree-insert (tree prefix symbol)
+(defun company-symbol-after-symbol-tree-insert (tree keys)
   "Insert item to a completion-tree destructively."
-  (let ((candidates-tree (radix-tree-lookup (car tree) prefix)))
-    (unless candidates-tree
-      (setq candidates-tree (company-symbol-after-symbol-candidates-tree-empty))
-      (setcar tree (radix-tree-insert (car tree) prefix candidates-tree)))
-    (company-symbol-after-symbol-candidates-tree-insert candidates-tree symbol)))
+  (cl-incf (car tree))
+  (when keys
+    (let ((child (radix-tree-lookup (cdr tree) (car keys))))
+      (unless child
+        (setq child (company-symbol-after-symbol-tree-empty))
+        (setcdr tree (radix-tree-insert (cdr tree) (car keys) child)))
+      (company-symbol-after-symbol-tree-insert child (cdr keys)))))
 
-(defun company-symbol-after-symbol-completion-tree-search (tree prefix &optional threshold)
+(defun company-symbol-after-symbol-tree-search (tree keys &optional threshold)
   "Search through a completion-tree with PREFIX. If THRESHOLD is
 specified, filter as like
 `company-symbol-after-symbol-filter-by-occurrences'."
-  (let ((tree (or (radix-tree-lookup (car tree) prefix) (cons 0 nil)))
-        candidates)
-    (setq threshold (* (or threshold 0) (car tree)))
-    (radix-tree-iter-mappings
-     (cdr tree)
-     (lambda (k v) (when (>= (car v) threshold) (push (concat prefix k) candidates))))
-    candidates))
+  (when tree
+   (if keys
+       (company-symbol-after-symbol-tree-search
+        (radix-tree-lookup (cdr tree) (car keys)) (cdr keys) threshold)
+     (setq threshold (* (or threshold 0) (car tree)))
+     (let (candidates)
+       (radix-tree-iter-mappings
+        (cdr tree)
+        (lambda (k v) (when (>= (car v) threshold) (push k candidates))))
+       candidates))))
 
 ;; ---- cache
 
@@ -112,20 +112,20 @@ specified, filter as like
 (defvar-local company-symbol-after-symbol-cache-is-dirty t)
 
 (defun company-symbol-after-symbol-get-all-current-buffer-candidates ()
-  "Get list of all possible (PREFIX . COMPLETION) pairs in the
-buffer."
+  "Get list of all possible (SYMBOL1 SYMBOL2 SYMBOL3)s in the
+buffer. Note that each symbols may combined with suffix
+character, like \"foo (\" for example."
   (let ((lines (mapcar
-                (lambda (line) (cdr (split-string line "\\_<\\|\\_>")))
+                (lambda (line) (cdr (split-string line "\\_<")))
                 (split-string (buffer-substring-no-properties (point-min) (point-max)) "\n")))
         candidates)
     (dolist (line lines)
-      ;; add an empty symbol, so that a symbol after the first symbol
-      ;; can be completed with 2-gram
-      (setq line (cons "" (cons "" line)))
-      (while (cddddr line)
-        (cl-destructuring-bind (symbol1 delimiter1 symbol2 delimiter2 suffix . _) line
-          (push (cons (concat symbol1 delimiter1 symbol2 delimiter2) suffix) candidates))
-        (setq line (cddr line))))
+      ;; replace the first element (which is a non-symbol string at
+      ;; the BOL) with an empty string
+      (setcar lines "")
+      (while (cddr line)
+        (push (list (car line) (cadr line) (caddr line)) candidates)
+        (setq line (cdr line))))
     candidates))
 
 (defun company-symbol-after-symbol-update-cache (&optional buffer)
@@ -136,12 +136,12 @@ buffer."
                (or (derived-mode-p 'prog-mode)
                    (derived-mode-p 'text-mode)))
       (let ((tree (gethash major-mode company-symbol-after-symbol-cache nil))
-            (pairs (company-symbol-after-symbol-get-all-current-buffer-candidates)))
+            (items (company-symbol-after-symbol-get-all-current-buffer-candidates)))
         (unless tree
-          (setq tree (company-symbol-after-symbol-completion-tree-empty))
+          (setq tree (company-symbol-after-symbol-tree-empty))
           (puthash major-mode tree company-symbol-after-symbol-cache))
-        (dolist (pair pairs)
-          (company-symbol-after-symbol-completion-tree-insert tree (car pair) (cdr pair)))
+        (dolist (item items)
+          (company-symbol-after-symbol-tree-insert tree item))
         (setq company-symbol-after-symbol-cache-is-dirty nil)))))
 
 (defun company-symbol-after-symbol-invalidate-cache (&rest _)
@@ -155,61 +155,81 @@ buffer."
 
 ;; ---- interface
 
-(defvar company-symbol-after-symbol--candidates nil)
-(defvar company-symbol-after-symbol--bolp nil)
-
-(defun company-symbol-after-symbol-search-current-buffer-candidates (prefix)
+(defun company-symbol-after-symbol-search-current-buffer-candidates (prefix1 &optional prefix2)
   (let ((candidates
          (company-symbol-after-symbol-search-regex
-          (concat (and company-symbol-after-symbol--bolp "^\\W*")
-                  "\\(" (regexp-quote prefix) "\\_<.+?\\_>\\)")
+          (concat
+           (if prefix1 "" "^\\W*")
+           "\\(" (regexp-quote (or prefix1 "")) (regexp-quote (or prefix2 "")) "\\_<.+?\\_>\\)")
           1
           (point))))
     (company-symbol-after-symbol-filter-by-occurrences
      (sort candidates 'string<)
      company-symbol-after-symbol-same-buffer-threshold)))
 
-(defun company-symbol-after-symbol-search-other-buffer-candidates (prefix)
+(defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 &optional prefix2)
   (company-symbol-after-symbol-update-cache-other-buffers)
-  (company-symbol-after-symbol-completion-tree-search
-   (gethash major-mode company-symbol-after-symbol-cache nil)
-   prefix
-   company-symbol-after-symbol-same-buffer-threshold))
+  (mapcar (lambda (s)
+            (string-match "^.+\\_>" s)  ; drop suffix
+            (concat (or prefix1 "") (or prefix2 "") (match-string 0 s))) ; concat prefix
+          (company-symbol-after-symbol-tree-search
+           (gethash major-mode company-symbol-after-symbol-cache nil)
+           (cons (or prefix1 "") (if prefix2 (list prefix2) nil))
+           company-symbol-after-symbol-same-buffer-threshold)))
 
-(defun company-symbol-after-symbol-all-completions (prefix)
-  (nconc (company-symbol-after-symbol-search-current-buffer-candidates prefix)
-         (company-symbol-after-symbol-search-other-buffer-candidates prefix)))
+(defun company-symbol-after-symbol-all-completions (prefix1 &optional prefix2)
+  "Get all completions for given prefixes. If only PREFIX1 is
+given, try to find 2-gram candidates. Otherwise try to find
+3-gram candidates. PREFIX1 can be nil for 3-gram completion,
+which implies the BOL."
+  (nconc (company-symbol-after-symbol-search-current-buffer-candidates prefix1 prefix2)
+         (company-symbol-after-symbol-search-other-buffer-candidates prefix1 prefix2)))
 
-(defun company-symbol-after-symbol (command &optional arg &rest ignored)
+(defvar company-symbol-after-symbol--candidates nil)
+
+(defun company-symbol-after-symbol (command &optional _ &rest __)
   (interactive (list 'interactive))
   (cl-case command
     (interactive (company-begin-backend 'company-symbol-after-symbol))
     (prefix
-     (when (or
-            ;; if completion is already started, continue completion as long as
-            ;; the current command is listed in "continue-commands"
-            (and (memq this-command company-symbol-after-symbol-continue-commands)
-                 company-symbol-after-symbol--candidates)
-            ;; otherwise, start completion iff the point is NOT immediately after a symbol
-            ;; (at least one non-symbol character is required to start completion)
-            (not (looking-back
-                  (if company-symbol-after-symbol-complete-after-space
-                      "\\(\\sw\\|\\s_\\)"
-                    "\\(\\sw\\|\\s_\\)[\s\t]*")
-                  (point-at-bol))))
-       ;; capture at most two (except for the currently-completing
-       ;; symbol) symbols before the cursor
-       (cond ((looking-back "\\_<.+?\\_>[^\n]+?\\_<.+?\\_>[^\n]+?\\(\\sw\\|\\s_\\)*" (point-at-bol))
-              (setq company-symbol-after-symbol--bolp nil)
-              (match-string 0))
-             ((looking-back "\\_<.+?\\_>[^\n]+?\\(\\sw\\|\\s_\\)*" (point-at-bol))
-              (setq company-symbol-after-symbol--bolp t)
-              (match-string 0)))))
+     (and (or
+           ;; if completion is already started, continue completion as long as
+           ;; the current command is listed in "continue-commands"
+           (and (memq this-command company-symbol-after-symbol-continue-commands)
+                company-symbol-after-symbol--candidates)
+           ;; otherwise, start completion iff the point is NOT immediately after a symbol
+           ;; (at least one non-symbol character is required to start completion)
+           (not (looking-back
+                 (if company-symbol-after-symbol-complete-after-space
+                     "\\(\\sw\\|\\s_\\)"
+                   "\\(\\sw\\|\\s_\\)[\s\t]*")
+                 (point-at-bol))))
+          (or
+           ;; capture two (one if at BOL) symbols and search 3-gram candidates
+           (and (looking-back
+                 ;; (?:BOL    |  (prefix1          )  )  (prefix2          )  (current-symb )
+                 "\\(?:^\\W*\\|\\(\\_<.+?\\_>\\W*\\)\\)\\(\\_<.+?\\_>\\W*\\)\\(\\sw\\|\\s_\\)*"
+                 (point-at-bol))
+                (or company-symbol-after-symbol--candidates
+                    (save-match-data
+                      (setq company-symbol-after-symbol--candidates
+                            (company-symbol-after-symbol-all-completions
+                             (match-string 1) (match-string 2)))))
+                (concat (match-string 1) (match-string 2) (match-string 3)))
+           (and
+            ;; capture one symbol and search 2-gram candidates
+            company-symbol-after-symbol-fallback-to-2gram
+            (looking-back
+             ;; (prefix1          )
+             "\\(\\_<.+?\\_>\\W*\\)\\(?:\\sw\\|\\s_\\)*"
+             (point-at-bol))
+            (or company-symbol-after-symbol--candidates
+                (save-match-data
+                  (setq company-symbol-after-symbol--candidates
+                        (company-symbol-after-symbol-all-completions (match-string 1)))))
+            (match-string 0)))))
     (duplicates t)
-    (candidates
-     (or company-symbol-after-symbol--candidates
-         (setq company-symbol-after-symbol--candidates
-               (company-symbol-after-symbol-all-completions company-prefix))))))
+    (candidates company-symbol-after-symbol--candidates)))
 
 (defun company-symbol-after-symbol-finished (&optional _)
   (setq company-symbol-after-symbol--candidates nil))
