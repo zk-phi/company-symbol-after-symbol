@@ -164,10 +164,9 @@ buffer."
                   "\\(" (regexp-quote prefix) "\\_<.+?\\_>\\)")
           1
           (point))))
-    (setq company-symbol-after-symbol--candidates
-          (company-symbol-after-symbol-filter-by-occurrences
-           (sort candidates 'string<)
-           company-symbol-after-symbol-same-buffer-threshold))))
+    (company-symbol-after-symbol-filter-by-occurrences
+     (sort candidates 'string<)
+     company-symbol-after-symbol-same-buffer-threshold)))
 
 (defun company-symbol-after-symbol-search-other-buffer-candidates (prefix)
   (company-symbol-after-symbol-update-cache-other-buffers)
@@ -208,7 +207,8 @@ buffer."
     (duplicates t)
     (candidates
      (or company-symbol-after-symbol--candidates
-         (company-symbol-after-symbol-all-completions company-prefix)))))
+         (setq company-symbol-after-symbol--candidates
+               (company-symbol-after-symbol-all-completions company-prefix))))))
 
 (defun company-symbol-after-symbol-finished (&optional _)
   (setq company-symbol-after-symbol--candidates nil))
