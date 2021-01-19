@@ -213,8 +213,8 @@ buffer."
                       "\\(\\sw\\|\\s_\\)"
                     "\\(\\sw\\|\\s_\\)[\s\t]*")
                   (point-at-bol))))
-       ;; capture at most two symbols before the cursor
-       ;; (except for a currently-completing symbol)
+       ;; capture at most two (except for the currently-completing
+       ;; symbol) symbols before the cursor
        (cond ((looking-back "\\_<.+?\\_>[^\n]+?\\_<.+?\\_>[^\n]+?\\(\\sw\\|\\s_\\)*" (point-at-bol))
               (setq company-symbol-after-symbol--bolp nil)
               (match-string 0))
