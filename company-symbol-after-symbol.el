@@ -8,12 +8,6 @@
   "Simple-minded omni completion engine for company."
   :group 'company-symbol-after-symbol)
 
-(defcustom company-symbol-after-symbol-complete-after-space nil
-  "When non-nil, complete spacce-delimited symbols. Otherwise, at
-least one non-space character is required to start completion."
-  :group 'company-symbol-after-symbol
-  :type 'boolean)
-
 (defcustom company-symbol-after-symbol-threshold 0.05
   "Threshold to filter search results. When 0.05 for example,
  which is the defualt value, completion candidates which occupy
@@ -198,11 +192,7 @@ which implies the BOL."
                 company-symbol-after-symbol--candidates)
            ;; otherwise, start completion iff the point is NOT immediately after a symbol
            ;; (at least one non-symbol character is required to start completion)
-           (not (looking-back
-                 (if company-symbol-after-symbol-complete-after-space
-                     "\\(\\sw\\|\\s_\\)"
-                   "\\(\\sw\\|\\s_\\)[\s\t]*")
-                 (point-at-bol))))
+           (not (looking-back "\\(\\sw\\|\\s_\\)" (point-at-bol))))
           (or
            ;; capture two (one if at BOL) symbols and search 3-gram candidates
            (and (looking-back
