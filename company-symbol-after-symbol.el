@@ -3,6 +3,7 @@
 
 (require 'company)
 (require 'cl-lib)
+(require 'radix-tree)
 
 (defgroup company-symbol-after-symbol nil
   "Simple-minded omni completion engine for company."
