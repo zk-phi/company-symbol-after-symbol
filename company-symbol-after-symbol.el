@@ -85,7 +85,7 @@ is specified, search before/after the point separately."
       (company-symbol-after-symbol-tree-insert child (cdr keys)))))
 
 (defun company-symbol-after-symbol-tree-search (tree keys &optional threshold)
-  "Search through a completion-tree with PREFIX. If THRESHOLD is
+  "Search through a completion-tree with KEYS. If THRESHOLD is
 specified, filter as like
 `company-symbol-after-symbol-filter-by-occurrences'."
   (when tree
