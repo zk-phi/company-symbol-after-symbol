@@ -98,27 +98,6 @@ Note that this fallbac behavior may give less accurate candidates than
 other two methods. So this can be disabled by setting
 `company-symbol-after-symbol-fallback-to-2gram` to `nil`.
 
-### thresholding
-
-`company-symbol-after-symbol` filters candidates to drop less
-significant ones. For an example, if `company-symbol-after-symbol`
-finds following candidates after searching:
-
-```javascript
-PropTypes.bool    x20 (30.3%)
-PropTypes.func    x20 (30.3%)
-PropTypes.number  x15 (22.7%)
-PropTypes.arrayOf x10 (15.2%)
-PropTypes.bol     x1  ( 1.5%)
-```
-
-`PropTypes.bol`, which is a typo, is much less significant than other
-candidates. So `company-symbol-after-symbol` drops the candidate from
-the list.
-
-This threshold can be configured by setting
-`company-symbol-after-symbol-threshold`.
-
 ### symbols from other buffers
 
 `company-symbol-after-symbol` can also complete symbols from other

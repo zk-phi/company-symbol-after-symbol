@@ -9,13 +9,6 @@
   "Simple-minded omni completion engine for company."
   :group 'company-symbol-after-symbol)
 
-(defcustom company-symbol-after-symbol-threshold 0.05
-  "Threshold to filter search results. When 0.05 for example,
- which is the defualt value, completion candidates which occupy
- less than 5% among the results are dropped."
-  :group 'company-symbol-after-symbol
-  :type 'number)
-
 (defcustom company-symbol-after-symbol-fallback-to-2gram t
   "When non-nil, try to find 2-gram candidates, if no 3-gram
   candidates found."
@@ -48,23 +41,6 @@ is specified, search before/after the point separately."
         (push (match-string-no-properties (or subexp 0)) lst)))
     lst))
 
-;; ---- filter candidates
-
-(defun company-symbol-after-symbol-filter-by-occurrences (sorted-list threshold)
-  (when sorted-list
-    (setq threshold (* threshold (length sorted-list)))
-    (let ((current-count 1) candidates)
-      (while sorted-list
-        (cond ((and (cadr sorted-list) (string= (car sorted-list) (cadr sorted-list)))
-               (pop sorted-list)
-               (cl-incf current-count))
-              (t
-               (if (>= current-count threshold)
-                   (push (pop sorted-list) candidates)
-                 (pop sorted-list))
-               (setq current-count 1))))
-      candidates)))
-
 ;; ---- completion-tree
 
 ;; a completion-tree is:
@@ -84,19 +60,13 @@ is specified, search before/after the point separately."
         (setcdr tree (radix-tree-insert (cdr tree) (car keys) child)))
       (company-symbol-after-symbol-tree-insert child (cdr keys)))))
 
-(defun company-symbol-after-symbol-tree-search (tree keys &optional threshold)
-  "Search through a completion-tree with KEYS. If THRESHOLD is
-specified, filter as like
-`company-symbol-after-symbol-filter-by-occurrences'."
+(defun company-symbol-after-symbol-tree-search (tree keys)
+  "Search through a completion-tree with KEYS."
   (when tree
    (if keys
-       (company-symbol-after-symbol-tree-search
-        (radix-tree-lookup (cdr tree) (car keys)) (cdr keys) threshold)
-     (setq threshold (* (or threshold 0) (car tree)))
+       (company-symbol-after-symbol-tree-search (radix-tree-lookup (cdr tree) (car keys)) (cdr keys))
      (let (candidates)
-       (radix-tree-iter-mappings
-        (cdr tree)
-        (lambda (k v) (when (>= (car v) threshold) (push k candidates))))
+       (radix-tree-iter-mappings (cdr tree) (lambda (k _) (push k candidates)))
        candidates))))
 
 ;; ---- cache
@@ -150,16 +120,12 @@ character, like \"foo (\" for example."
 ;; ---- interface
 
 (defun company-symbol-after-symbol-search-current-buffer-candidates (prefix1 &optional prefix2)
-  (let ((candidates
-         (company-symbol-after-symbol-search-regex
-          (concat
-           (if prefix1 "" "^\\W*")
-           "\\(" (regexp-quote (or prefix1 "")) (regexp-quote (or prefix2 "")) "\\_<.+?\\_>\\)")
-          1
-          (point))))
-    (company-symbol-after-symbol-filter-by-occurrences
-     (sort candidates 'string<)
-     company-symbol-after-symbol-threshold)))
+  (company-symbol-after-symbol-search-regex
+   (concat
+    (if prefix1 "" "^\\W*")
+    "\\(" (regexp-quote (or prefix1 "")) (regexp-quote (or prefix2 "")) "\\_<.+?\\_>\\)")
+   1
+   (point)))
 
 (defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 &optional prefix2)
   (company-symbol-after-symbol-update-cache-other-buffers)
@@ -168,8 +134,7 @@ character, like \"foo (\" for example."
             (concat (or prefix1 "") (or prefix2 "") (match-string 0 s))) ; concat prefix
           (company-symbol-after-symbol-tree-search
            (gethash major-mode company-symbol-after-symbol-cache nil)
-           (cons (or prefix1 "") (if prefix2 (list prefix2) nil))
-           company-symbol-after-symbol-threshold)))
+           (cons (or prefix1 "") (if prefix2 (list prefix2) nil)))))
 
 (defun company-symbol-after-symbol-all-completions (prefix1 &optional prefix2)
   "Get all completions for given prefixes. If only PREFIX1 is
