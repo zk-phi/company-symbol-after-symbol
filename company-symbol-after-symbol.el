@@ -44,21 +44,26 @@ is specified, search before/after the point separately."
 ;; ---- completion-tree
 
 ;; a completion-tree is:
-;; - cons[ocurrences, radix-tree[symbol, completion-tree]]
+;; - cons[timestamp, radix-tree[symbol, completion-tree]]
+;;
+;; NOTE: timestamp in middle layers are currently unused
+
+(defconst company-symbol-after-symbol-session-start-time (float-time))
 
 (defun company-symbol-after-symbol-tree-empty ()
   "Allocate an empty completion-tree."
-  (cons 0 nil))
+  (cons company-symbol-after-symbol-session-start-time nil))
 
-(defun company-symbol-after-symbol-tree-insert (tree keys)
-  "Insert item to a completion-tree destructively."
-  (cl-incf (car tree))
+(defun company-symbol-after-symbol-tree-insert (tree keys &optional timestamp)
+  "Insert an item to a completion-tree destructively."
+  (when (or (null timestamp) (> (car tree) timestamp))
+    (setcar tree (or timestamp company-symbol-after-symbol-session-start-time)))
   (when keys
     (let ((child (radix-tree-lookup (cdr tree) (car keys))))
       (unless child
         (setq child (company-symbol-after-symbol-tree-empty))
         (setcdr tree (radix-tree-insert (cdr tree) (car keys) child)))
-      (company-symbol-after-symbol-tree-insert child (cdr keys)))))
+      (company-symbol-after-symbol-tree-insert child (cdr keys) timestamp))))
 
 (defun company-symbol-after-symbol-tree-search (tree keys)
   "Search through a completion-tree with KEYS."
