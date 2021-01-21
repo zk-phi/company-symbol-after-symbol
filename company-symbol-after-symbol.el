@@ -54,50 +54,53 @@ is specified, search before/after the point separately."
 
 ;; ---- completion-tree
 
-;; a completion-tree is:
-;; - cons[timestamp, radix-tree[symbol, completion-tree]]
-;;
-;; NOTE: timestamp in middle layers are currently unused
+;; a completion-tree is a:
+;; - cons[occurrences, radix-tree[symbol, completion-tree]] (level 1 or 2)
+;; - cons[occurrences, timestamp] (level 3)
 
 (defconst company-symbol-after-symbol-session-start-time (float-time))
 
 (defun company-symbol-after-symbol-tree-empty ()
   "Allocate an empty completion-tree."
-  (cons company-symbol-after-symbol-session-start-time nil))
+  (cons 0 nil))
 
-(defun company-symbol-after-symbol-tree-insert (tree keys &optional timestamp)
-  "Insert an item to a completion-tree destructively."
-  (when (or (null timestamp) (> (car tree) timestamp))
-    (setcar tree (or timestamp company-symbol-after-symbol-session-start-time)))
-  (when keys
-    (let ((child (radix-tree-lookup (cdr tree) (car keys))))
-      (unless child
-        (setq child (company-symbol-after-symbol-tree-empty))
-        (setcdr tree (radix-tree-insert (cdr tree) (car keys) child)))
-      (company-symbol-after-symbol-tree-insert child (cdr keys) timestamp))))
+(defun company-symbol-after-symbol-tree-insert (tree keys &optional n timestamp)
+  "Insert an item to a completion-tree destructively. When N is
+specified, repeat N times. Current time is recorded unless
+TIMESTAMP is specified."
+  (cl-incf (car tree) (or n 1))
+  (cond (keys
+         (let ((child (radix-tree-lookup (cdr tree) (car keys))))
+           (unless child
+             (setq child (company-symbol-after-symbol-tree-empty))
+             (setcdr tree (radix-tree-insert (cdr tree) (car keys) child)))
+           (company-symbol-after-symbol-tree-insert child (cdr keys) n timestamp)))
+        (t
+         (unless (and timestamp (cdr tree) (> (cdr tree) timestamp))
+           (setcdr tree (or timestamp company-symbol-after-symbol-session-start-time))))))
 
 (defun company-symbol-after-symbol-tree-search (tree keys)
   "Search through a completion-tree with KEYS."
-  (when tree
-   (if keys
-       (company-symbol-after-symbol-tree-search (radix-tree-lookup (cdr tree) (car keys)) (cdr keys))
-     (let (candidates)
-       (radix-tree-iter-mappings (cdr tree) (lambda (k _) (push k candidates)))
-       candidates))))
+  (when (consp tree)
+    (if keys
+        (company-symbol-after-symbol-tree-search (radix-tree-lookup (cdr tree) (car keys)) (cdr keys))
+      (let (candidates)
+        (radix-tree-iter-mappings (cdr tree) (lambda (k _) (push k candidates)))
+        candidates))))
 
 (defun company-symbol-after-symbol-tree-to-alist (tree)
-  "Transform tree to an alist of the form ((TIMESTAMP . KEYS)
+  "Transform tree to an alist of the form ((TIMESTAMP OCCURRENCES . KEYS)
   ...)."
   (let (lst)
     (radix-tree-iter-mappings
      (cdr tree)
      (lambda (k v)
-       (cond ((null (cdr v))            ; leaf
-              (push (cons (car v) (list k)) lst))
+       (cond ((numberp (cdr v))         ; leaf
+              (push (cons (cdr v) (cons (car v) (list k))) lst))
              (t                         ; node
               (setq lst
                     (nconc lst
-                           (mapcar (lambda (item) (push k (cdr item)) item)
+                           (mapcar (lambda (item) (push k (cddr item)) item)
                                    (company-symbol-after-symbol-tree-to-alist v))))))))
     lst))
 
@@ -160,7 +163,7 @@ character, like \"foo (\" for example."
             (hash-by-time (make-hash-table :test 'eql)))
         (dolist (item items)
           (when (<= limit (car item))
-            (push (cdr item) (gethash (car item) hash-by-time))))
+            (push (cddr item) (gethash (car item) hash-by-time))))
         (let (time-list)
           (maphash (lambda (time items) (push (cons time items) time-list)) hash-by-time)
           (when time-list
@@ -173,7 +176,7 @@ character, like \"foo (\" for example."
       (let ((tree (company-symbol-after-symbol-tree-empty)))
         (dolist (time-data (cdr mode-data))
           (dolist (item (cdr time-data))
-            (company-symbol-after-symbol-tree-insert tree item (car time-data))))
+            (company-symbol-after-symbol-tree-insert tree item nil (car time-data))))
         (puthash (car mode-data) tree cache)))
     cache))
 
