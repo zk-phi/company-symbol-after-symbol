@@ -152,7 +152,7 @@ character, like \"foo (\" for example."
 ;; ---- save / load cache
 
 (defun company-symbol-after-symbol-cache-to-history-v1 (cache)
-  ;; alist[mode -> alist[time -> list[symb]]]
+  ;; alist[mode -> alist[time -> list[keys]]]
   (let ((limit (- (float-time) company-same-mode-buffers-history-store-limit))
         res)
     (dolist (mode (hash-table-keys cache))
