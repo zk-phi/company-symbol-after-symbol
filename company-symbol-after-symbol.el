@@ -1,5 +1,4 @@
 ;;; -*- lexical-binding: t -*-
-;; TODO: cache candidates across sessions
 
 (require 'company)
 (require 'cl-lib)
@@ -14,6 +13,18 @@
   candidates found."
   :group 'company-symbol-after-symbol
   :type 'boolean)
+
+(defcustom company-symbol-after-symbol-history-file nil
+  "When non-nil, save history to a file in order to share
+  completion candidates across sessions."
+  :group 'company-symbol-after-symbol
+  :type 'string)
+
+(defcustom company-symbol-after-symbol-history-store-limit (* 7 24 60 60)
+  "How long (in seconds) candidates should be stored in the
+  history file."
+  :group 'company-symbol-after-symbol
+  :type 'number)
 
 (defcustom company-symbol-after-symbol-continue-commands
   '(company-complete-common
@@ -74,6 +85,22 @@ is specified, search before/after the point separately."
        (radix-tree-iter-mappings (cdr tree) (lambda (k _) (push k candidates)))
        candidates))))
 
+(defun company-symbol-after-symbol-tree-to-alist (tree)
+  "Transform tree to an alist of the form ((TIMESTAMP . KEYS)
+  ...)."
+  (let (lst)
+    (radix-tree-iter-mappings
+     (cdr tree)
+     (lambda (k v)
+       (cond ((null (cdr v))            ; leaf
+              (push (cons (car v) (list k)) lst))
+             (t                         ; node
+              (setq lst
+                    (nconc lst
+                           (mapcar (lambda (item) (push k (cdr item)) item)
+                                   (company-symbol-after-symbol-tree-to-alist v))))))))
+    lst))
+
 ;; ---- cache
 
 ;; hash[mode -> completion-tree]
@@ -121,6 +148,56 @@ character, like \"foo (\" for example."
   (dolist (buf (buffer-list))
     (unless (eq buf (current-buffer))
       (company-symbol-after-symbol-update-cache buf))))
+
+;; ---- save / load cache
+
+(defun company-symbol-after-symbol-cache-to-history-v1 (cache)
+  ;; alist[mode -> alist[time -> list[symb]]]
+  (let ((limit (- (float-time) company-same-mode-buffers-history-store-limit))
+        res)
+    (dolist (mode (hash-table-keys cache))
+      (let ((items (company-symbol-after-symbol-tree-to-alist (gethash mode cache)))
+            (hash-by-time (make-hash-table :test 'eql)))
+        (dolist (item items)
+          (when (<= limit (car item))
+            (push (cdr item) (gethash (car item) hash-by-time))))
+        (let (time-list)
+          (maphash (lambda (time items) (push (cons time items) time-list)) hash-by-time)
+          (when time-list
+            (push (cons mode time-list) res)))))
+    res))
+
+(defun company-symbol-after-symbol-cache-from-history-v1 (data)
+  (let ((cache (make-hash-table :test 'eq)))
+    (dolist (mode-data data)
+      (let ((tree (company-symbol-after-symbol-tree-empty)))
+        (dolist (time-data (cdr mode-data))
+          (dolist (item (cdr time-data))
+            (company-symbol-after-symbol-tree-insert tree item (car time-data))))
+        (puthash (car mode-data) tree cache)))
+    cache))
+
+(defun company-symbol-after-symbol-history-save ()
+  (when company-symbol-after-symbol-history-file
+    (company-symbol-after-symbol-update-cache-other-buffers)
+    (company-symbol-after-symbol-update-cache (current-buffer))
+    (let ((data (company-symbol-after-symbol-cache-to-history-v1
+                 company-symbol-after-symbol-cache))
+          (enable-local-variables nil))
+      (with-temp-buffer
+        (prin1 (cons 1 data) (current-buffer))
+        (write-file company-symbol-after-symbol-history-file)))))
+
+(defun company-symbol-after-symbol-history-load ()
+  (when (and company-symbol-after-symbol-history-file
+             (file-exists-p company-symbol-after-symbol-history-file))
+    (let ((data (with-temp-buffer
+                  (insert-file-contents company-symbol-after-symbol-history-file)
+                  (read (current-buffer)))))
+      (cl-case (car data)
+        (1 (setq company-symbol-after-symbol-cache
+                 (company-symbol-after-symbol-cache-from-history-v1 (cdr data))))
+        (t (error "unknown history file version"))))))
 
 ;; ---- interface
 
@@ -195,5 +272,12 @@ which implies the BOL."
   (setq company-symbol-after-symbol--candidates nil))
 
 (add-hook 'company-after-completion-hook 'company-symbol-after-symbol-finished)
+
+(defun company-symbol-after-symbol-initialize ()
+  (add-hook 'after-change-functions 'company-symbol-after-symbol-invalidate-cache)
+  (add-hook 'kill-buffer-hook 'company-symbol-after-symbol-update-cache)
+  (add-hook 'kill-emacs-hook 'company-symbol-after-symbol-history-save)
+  (company-symbol-after-symbol-history-load)
+  nil)
 
 (provide 'company-symbol-after-symbol)
