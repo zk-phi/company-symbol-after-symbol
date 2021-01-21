@@ -211,12 +211,13 @@ character, like \"foo (\" for example."
 
 (defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 &optional prefix2)
   (company-symbol-after-symbol-update-cache-other-buffers)
-  (mapcar (lambda (s)
-            (string-match "^.+\\_>" s)  ; drop suffix
-            (concat (or prefix1 "") (or prefix2 "") (match-string 0 s))) ; concat prefix
-          (company-symbol-after-symbol-tree-search
-           (gethash major-mode company-symbol-after-symbol-cache nil)
-           (cons (or prefix1 "") (if prefix2 (list prefix2) nil)))))
+  (let ((tree (gethash major-mode company-symbol-after-symbol-cache nil)))
+    (when tree
+      (mapcar (lambda (s)
+                (string-match "^.+\\_>" s) ; drop suffix
+                (concat (or prefix1 "") (or prefix2 "") (match-string 0 s))) ; concat prefix
+              (company-symbol-after-symbol-tree-search
+               tree (cons (or prefix1 "") (if prefix2 (list prefix2) nil)))))))
 
 (defun company-symbol-after-symbol-all-completions (prefix1 &optional prefix2)
   "Get all completions for given prefixes. If only PREFIX1 is
