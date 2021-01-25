@@ -20,6 +20,14 @@
   :group 'company-symbol-after-symbol
   :type 'string)
 
+(defcustom company-symbol-after-symbol-minimum-current-buffer-occurrences 1
+  "How many times (at least) candidates from the current-buffer
+must appear. When 2 for an example, \"baz\" is suggested after
+\"foo bar \", if the sequence \"foo bar baz\" appears more than
+twice in the same buffer."
+  :group 'company-symbol-after-symbol
+  :type 'integer)
+
 (defcustom company-symbol-after-symbol-history-store-limit (* 7 24 60 60)
   "How long (in seconds) candidates should be stored in the
   history file."
@@ -51,6 +59,20 @@ is specified, search before/after the point separately."
       (while (search-forward-regexp regex nil t)
         (push (match-string-no-properties (or subexp 0)) lst)))
     lst))
+
+(defun company-symbol-after-symbol-filter-by-occurrences (sorted-list threshold)
+  (when sorted-list
+    (let ((current-count 1) candidates)
+      (while sorted-list
+        (cond ((and (cadr sorted-list) (string= (car sorted-list) (cadr sorted-list)))
+               (pop sorted-list)
+               (cl-incf current-count))
+              (t
+               (if (>= current-count threshold)
+                   (push (pop sorted-list) candidates)
+                 (pop sorted-list))
+               (setq current-count 1))))
+      candidates)))
 
 ;; ---- completion-tree
 
@@ -205,12 +227,16 @@ character, like \"foo (\" for example."
 ;; ---- interface
 
 (defun company-symbol-after-symbol-search-current-buffer-candidates (prefix1 &optional prefix2)
-  (company-symbol-after-symbol-search-regex
-   (concat
-    (if prefix1 "" "^\\W*")
-    "\\(" (regexp-quote (or prefix1 "")) (regexp-quote (or prefix2 "")) "\\_<.+?\\_>\\)")
-   1
-   (point)))
+  (let ((candidates
+         (company-symbol-after-symbol-search-regex
+          (concat
+           (if prefix1 "" "^\\W*")
+           "\\(" (regexp-quote (or prefix1 "")) (regexp-quote (or prefix2 "")) "\\_<.+?\\_>\\)")
+          1
+          (point))))
+    (company-symbol-after-symbol-filter-by-occurrences
+     (sort candidates 'string<)
+     company-symbol-after-symbol-minimum-current-buffer-occurrences)))
 
 (defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 &optional prefix2)
   (company-symbol-after-symbol-update-cache-other-buffers)
