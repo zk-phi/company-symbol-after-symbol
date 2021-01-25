@@ -28,9 +28,24 @@ twice in the same buffer."
   :group 'company-symbol-after-symbol
   :type 'integer)
 
+(defcustom company-symbol-after-symbol-minimum-other-buffers-occurrences 2
+  "How many times (at least) candidates from other-buffers must
+  appear in the same-mode buffers. When 2 for an example, \"baz\"
+  is suggested after \"foo bar \", if the sequence \"foo bar
+  baz\" appears more than twice in the same-mode buffers. Note
+  that the count is NOT carried over across
+  sessions. i.e. candidates must appear more than twice in a
+  single session (not once in a session and once in another
+  session). Once the condition is met, candidates are saved in
+  `company-symbol-after-symbol-history-file' for next sessions."
+  :group 'company-symbol-after-symbol
+  :type 'integer)
+
 (defcustom company-symbol-after-symbol-history-store-limit (* 7 24 60 60)
   "How long (in seconds) candidates should be stored in the
-  history file."
+  history file after last seen. When 7 days for an example,
+  candidates are deleted if they are unseen for more than 7
+  days."
   :group 'company-symbol-after-symbol
   :type 'number)
 
@@ -101,13 +116,16 @@ TIMESTAMP is specified."
          (unless (and timestamp (cdr tree) (> (cdr tree) timestamp))
            (setcdr tree (or timestamp company-symbol-after-symbol-session-start-time))))))
 
-(defun company-symbol-after-symbol-tree-search (tree keys)
+(defun company-symbol-after-symbol-tree-search (tree keys &optional threshold)
   "Search through a completion-tree with KEYS."
   (when (consp tree)
     (if keys
-        (company-symbol-after-symbol-tree-search (radix-tree-lookup (cdr tree) (car keys)) (cdr keys))
+        (company-symbol-after-symbol-tree-search
+         (radix-tree-lookup (cdr tree) (car keys)) (cdr keys) threshold)
       (let (candidates)
-        (radix-tree-iter-mappings (cdr tree) (lambda (k _) (push k candidates)))
+        (radix-tree-iter-mappings
+         (cdr tree)
+         (lambda (k v) (when (<= (or threshold 0) (car v)) (push k candidates))))
         candidates))))
 
 (defun company-symbol-after-symbol-tree-to-alist (tree)
@@ -176,7 +194,7 @@ character, like \"foo (\" for example."
 
 ;; ---- save / load cache
 
-(defun company-symbol-after-symbol-cache-to-history-v1 (cache)
+(defun company-symbol-after-symbol-cache-to-history-v2 (cache)
   ;; alist[mode -> alist[time -> list[keys]]]
   (let ((limit (- (float-time) company-same-mode-buffers-history-store-limit))
         res)
@@ -184,7 +202,8 @@ character, like \"foo (\" for example."
       (let ((items (company-symbol-after-symbol-tree-to-alist (gethash mode cache)))
             (hash-by-time (make-hash-table :test 'eql)))
         (dolist (item items)
-          (when (<= limit (car item))
+          (when (and (<= limit (car item))
+                     (<= company-symbol-after-symbol-minimum-other-buffers-occurrences (cadr item)))
             (push (cddr item) (gethash (car item) hash-by-time))))
         (let (time-list)
           (maphash (lambda (time items) (push (cons time items) time-list)) hash-by-time)
@@ -192,13 +211,18 @@ character, like \"foo (\" for example."
             (push (cons mode time-list) res)))))
     res))
 
-(defun company-symbol-after-symbol-cache-from-history-v1 (data)
+(defun company-symbol-after-symbol-cache-from-history-v1 (_)
+  (make-hash-table :test 'eq))
+
+(defun company-symbol-after-symbol-cache-from-history-v2 (data)
   (let ((cache (make-hash-table :test 'eq)))
     (dolist (mode-data data)
       (let ((tree (company-symbol-after-symbol-tree-empty)))
         (dolist (time-data (cdr mode-data))
           (dolist (item (cdr time-data))
-            (company-symbol-after-symbol-tree-insert tree item nil (car time-data))))
+            (company-symbol-after-symbol-tree-insert
+             tree item
+             company-symbol-after-symbol-minimum-other-buffers-occurrences (car time-data))))
         (puthash (car mode-data) tree cache)))
     cache))
 
@@ -206,11 +230,11 @@ character, like \"foo (\" for example."
   (when company-symbol-after-symbol-history-file
     (company-symbol-after-symbol-update-cache-other-buffers)
     (company-symbol-after-symbol-update-cache (current-buffer))
-    (let ((data (company-symbol-after-symbol-cache-to-history-v1
+    (let ((data (company-symbol-after-symbol-cache-to-history-v2
                  company-symbol-after-symbol-cache))
           (enable-local-variables nil))
       (with-temp-buffer
-        (prin1 (cons 1 data) (current-buffer))
+        (prin1 (cons 2 data) (current-buffer))
         (write-file company-symbol-after-symbol-history-file)))))
 
 (defun company-symbol-after-symbol-history-load ()
@@ -222,6 +246,8 @@ character, like \"foo (\" for example."
       (cl-case (car data)
         (1 (setq company-symbol-after-symbol-cache
                  (company-symbol-after-symbol-cache-from-history-v1 (cdr data))))
+        (2 (setq company-symbol-after-symbol-cache
+                 (company-symbol-after-symbol-cache-from-history-v2 (cdr data))))
         (t (error "unknown history file version"))))))
 
 ;; ---- interface
@@ -246,7 +272,8 @@ character, like \"foo (\" for example."
                 (string-match "^.+\\_>" s) ; drop suffix
                 (concat (or prefix1 "") (or prefix2 "") (match-string 0 s))) ; concat prefix
               (company-symbol-after-symbol-tree-search
-               tree (cons (or prefix1 "") (if prefix2 (list prefix2) nil)))))))
+               tree (cons (or prefix1 "") (if prefix2 (list prefix2) nil))
+               company-symbol-after-symbol-minimum-other-buffers-occurrences)))))
 
 (defun company-symbol-after-symbol-all-completions (prefix1 &optional prefix2)
   "Get all completions for given prefixes. If only PREFIX1 is
