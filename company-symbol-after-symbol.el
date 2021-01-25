@@ -118,7 +118,7 @@ character, like \"foo (\" for example."
     (dolist (line lines)
       ;; replace the first element (which is a non-symbol string at
       ;; the BOL) with an empty string
-      (setcar lines "")
+      (setcar line "")
       (while (cddr line)
         (push (list (car line) (cadr line) (caddr line)) candidates)
         (setq line (cdr line))))
