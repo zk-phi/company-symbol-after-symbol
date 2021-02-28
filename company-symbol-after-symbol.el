@@ -20,6 +20,12 @@
   :group 'company-symbol-after-symbol
   :type 'string)
 
+(defcustom company-symbol-after-symbol-maximum-word-length 80
+  "Maximum length of words to save. This may be useful to avoid
+  long meaningless words (like base64 string) to be saved."
+  :group 'company-symbol-after-symbol
+  :type 'integer)
+
 (defcustom company-symbol-after-symbol-minimum-current-buffer-occurrences 1
   "How many times (at least) candidates from the current-buffer
 must appear. When 2 for an example, \"baz\" is suggested after
@@ -163,7 +169,10 @@ character, like \"foo (\" for example."
       ;; the BOL) with an empty string
       (setcar line "")
       (while (cddr line)
-        (push (list (car line) (cadr line) (caddr line)) candidates)
+        (when (and (<= (length (car line)) company-symbol-after-symbol-maximum-word-length)
+                   (<= (length (cadr line)) company-symbol-after-symbol-maximum-word-length)
+                   (<= (length (caddr line)) company-symbol-after-symbol-maximum-word-length))
+         (push (list (car line) (cadr line) (caddr line)) candidates))
         (setq line (cdr line))))
     candidates))
 
@@ -202,9 +211,16 @@ character, like \"foo (\" for example."
       (let ((items (company-symbol-after-symbol-tree-to-alist (gethash mode cache)))
             (hash-by-time (make-hash-table :test 'eql)))
         (dolist (item items)
-          (when (and (<= limit (car item))
-                     (<= company-symbol-after-symbol-minimum-other-buffers-occurrences (cadr item)))
-            (push (cddr item) (gethash (car item) hash-by-time))))
+          (cl-destructuring-bind (timestamp occurrences . keys) item
+            (when (and (<= limit timestamp)
+                       (<= company-symbol-after-symbol-minimum-other-buffers-occurrences occurrences)
+                       ;; drop candidates saved before the option
+                       ;; `company-symbol-after-symbol-maximum-word-length` is
+                       ;; introduced.
+                       (<= (length (car keys)) company-symbol-after-symbol-maximum-word-length)
+                       (<= (length (cadr keys)) company-symbol-after-symbol-maximum-word-length)
+                       (<= (length (caddr keys)) company-symbol-after-symbol-maximum-word-length))
+              (push (cddr item) (gethash (car item) hash-by-time)))))
         (let (time-list)
           (maphash (lambda (time items) (push (cons time items) time-list)) hash-by-time)
           (when time-list
