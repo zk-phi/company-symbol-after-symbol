@@ -1,6 +1,6 @@
-# comapny-symbol-after-symbol
+# comapny-symbol-after-symbol / complete-symbol-after-symbol
 
-WIP: Simple-minded omni completion for company
+WIP: Simple-minded omni completion for company / completion-at-point
 
 ![screencast](./screencast.gif)
 
