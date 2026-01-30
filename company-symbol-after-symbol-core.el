@@ -264,7 +264,7 @@ which implies the BOL."
      company-symbol-after-symbol-cache)
     res))
 
-(defun company-symbol-after-symbol-cache-from-history-v2 (data)
+(defun company-symbol-after-symbol--load-saved-data-v2 (data)
   (let ((cache (make-hash-table :test 'eq)))
     (dolist (mode-data data)
       (let ((tree (company-symbol-after-symbol-tree-empty)))
@@ -274,7 +274,7 @@ which implies the BOL."
              tree item
              company-symbol-after-symbol-minimum-other-buffers-occurrences (car time-data))))
         (puthash (car mode-data) tree cache)))
-    cache))
+    (setq company-symbol-after-symbol-cache cache)))
 
 (defun company-symbol-after-symbol--maybe-read-history-file ()
   (when (and company-symbol-after-symbol-history-file
@@ -303,9 +303,8 @@ which implies the BOL."
         (write-file company-symbol-after-symbol-history-file)))))
 
 (defun company-symbol-after-symbol-history-load ()
-  (setq company-symbol-after-symbol-cache
-        (company-symbol-after-symbol-cache-from-history-v2
-         (company-symbol-after-symbol--parse-history-file-v2))))
+  (company-symbol-after-symbol--load-saved-data-v2
+   (company-symbol-after-symbol--parse-history-file-v2)))
 
 (defun company-symbol-after-symbol-initialize ()
   (add-hook 'after-change-functions 'company-symbol-after-symbol-invalidate-cache)
