@@ -70,18 +70,17 @@ is specified, search before/after the point separately."
     lst))
 
 (defun company-symbol-after-symbol-filter-by-occurrences (sorted-list threshold)
-  (when sorted-list
-    (let ((current-count 1) candidates)
-      (while sorted-list
-        (cond ((and (cadr sorted-list) (string= (car sorted-list) (cadr sorted-list)))
-               (pop sorted-list)
-               (cl-incf current-count))
-              (t
-               (if (>= current-count threshold)
-                   (push (pop sorted-list) candidates)
-                 (pop sorted-list))
-               (setq current-count 1))))
-      candidates)))
+  (let ((current-count 1) candidates)
+    (while sorted-list
+      (cond ((and (cadr sorted-list) (string= (car sorted-list) (cadr sorted-list)))
+             (pop sorted-list)
+             (cl-incf current-count))
+            (t
+             (if (>= current-count threshold)
+                 (push (pop sorted-list) candidates)
+               (pop sorted-list))
+             (setq current-count 1))))
+    candidates))
 
 ;; ---- completion-tree
 
@@ -201,22 +200,13 @@ character, like \"foo (\" for example."
         (dolist (item items)
           (cl-destructuring-bind (timestamp occurrences . keys) item
             (when (and (<= limit timestamp)
-                       (<= company-symbol-after-symbol-minimum-other-buffers-occurrences occurrences)
-                       ;; drop candidates saved before the option
-                       ;; `company-symbol-after-symbol-maximum-word-length` is
-                       ;; introduced.
-                       (<= (length (car keys)) company-symbol-after-symbol-maximum-word-length)
-                       (<= (length (cadr keys)) company-symbol-after-symbol-maximum-word-length)
-                       (<= (length (caddr keys)) company-symbol-after-symbol-maximum-word-length))
+                       (<= company-symbol-after-symbol-minimum-other-buffers-occurrences occurrences))
               (push (cddr item) (gethash (car item) hash-by-time)))))
         (let (time-list)
           (maphash (lambda (time items) (push (cons time items) time-list)) hash-by-time)
           (when time-list
             (push (cons mode time-list) res)))))
     res))
-
-(defun company-symbol-after-symbol-cache-from-history-v1 (_)
-  (make-hash-table :test 'eq))
 
 (defun company-symbol-after-symbol-cache-from-history-v2 (data)
   (let ((cache (make-hash-table :test 'eq)))
@@ -248,8 +238,6 @@ character, like \"foo (\" for example."
                   (insert-file-contents company-symbol-after-symbol-history-file)
                   (read (current-buffer)))))
       (cl-case (car data)
-        (1 (setq company-symbol-after-symbol-cache
-                 (company-symbol-after-symbol-cache-from-history-v1 (cdr data))))
         (2 (setq company-symbol-after-symbol-cache
                  (company-symbol-after-symbol-cache-from-history-v2 (cdr data))))
         (t (error "unknown history file version"))))))
