@@ -244,22 +244,24 @@ which implies the BOL."
 
 ;; ---- save and load
 
-(defun company-symbol-after-symbol-cache-to-history-v2 (cache)
+(defun company-symbol-after-symbol--make-save-data-v2 ()
   ;; alist[mode -> alist[time -> list[keys]]]
   (let ((limit (- (float-time) company-symbol-after-symbol-history-store-limit))
         res)
-    (dolist (mode (hash-table-keys cache))
-      (let ((items (company-symbol-after-symbol-tree-to-alist (gethash mode cache)))
-            (hash-by-time (make-hash-table :test 'eql)))
-        (dolist (item items)
-          (cl-destructuring-bind (timestamp occurrences . keys) item
-            (when (and (<= limit timestamp)
-                       (<= company-symbol-after-symbol-minimum-other-buffers-occurrences occurrences))
-              (push (cddr item) (gethash (car item) hash-by-time)))))
-        (let (time-list)
-          (maphash (lambda (time items) (push (cons time items) time-list)) hash-by-time)
-          (when time-list
-            (push (cons mode time-list) res)))))
+    (maphash
+     (lambda (mode tree)
+       (let ((items (company-symbol-after-symbol-tree-to-alist tree))
+             (hash-by-time (make-hash-table :test 'eql)))
+         (dolist (item items)
+           (cl-destructuring-bind (timestamp occurrences . keys) item
+             (when (and (<= limit timestamp)
+                        (<= company-symbol-after-symbol-minimum-other-buffers-occurrences occurrences))
+               (push (cddr item) (gethash (car item) hash-by-time)))))
+         (let (time-list)
+           (maphash (lambda (time items) (push (cons time items) time-list)) hash-by-time)
+           (when time-list
+             (push (cons mode time-list) res)))))
+     company-symbol-after-symbol-cache)
     res))
 
 (defun company-symbol-after-symbol-cache-from-history-v2 (data)
@@ -294,8 +296,7 @@ which implies the BOL."
     (company-symbol-after-symbol-update-cache (current-buffer))
     (let ((data (cons
                  2
-                 (company-symbol-after-symbol-cache-to-history-v2
-                  company-symbol-after-symbol-cache)))
+                 (company-symbol-after-symbol--make-save-data-v2)))
           (enable-local-variables nil))
       (with-temp-buffer
         (prin1 data (current-buffer))
