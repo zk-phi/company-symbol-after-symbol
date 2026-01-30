@@ -1,8 +1,8 @@
 (require 'company-symbol-after-symbol-core)
 
 (defun complete-symbol-after-symbol ()
-  ;; otherwise, start completion iff the point is NOT immediately after a symbol
-  ;; (at least one non-symbol character is required to start completion)
+  ;; start completion iff the point is NOT immediately after a symbol (at least one non-symbol
+  ;; character is required to start completion)
   (unless (looking-back "\\(\\sw\\|\\s_\\)" (point-at-bol))
     (or
      ;; capture two (one if at BOL) symbols and search 3-gram candidates

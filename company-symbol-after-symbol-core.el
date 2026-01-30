@@ -75,6 +75,7 @@ is specified, search before/after the point separately."
     lst))
 
 (defun company-symbol-after-symbol-filter-by-occurrences (sorted-list threshold)
+  "De-dupe and filter SORTED-LIST by occurrences destructively."
   (let ((current-count 1) candidates)
     (while sorted-list
       (cond ((and (cadr sorted-list) (string= (car sorted-list) (cadr sorted-list)))
@@ -92,6 +93,7 @@ is specified, search before/after the point separately."
 ;; a completion-tree is a:
 ;; - cons[occurrences, radix-tree[symbol, completion-tree]] (level 1 or 2)
 ;; - cons[occurrences, timestamp] (level 3)
+;; level-1 key can be an empty string that indicates a BOL.
 
 (defconst company-symbol-after-symbol-session-start-time (float-time))
 
@@ -100,9 +102,10 @@ is specified, search before/after the point separately."
   (cons 0 nil))
 
 (defun company-symbol-after-symbol-tree-insert (tree keys &optional n timestamp)
-  "Insert an item to a completion-tree destructively. When N is
-specified, repeat N times. Current time is recorded unless
-TIMESTAMP is specified."
+  "Insert an item to a completion-tree destructively. KEYS can be a
+list of 3 words (where 1st element can be an empty string that
+indicates a BOL). When N is specified, repeat N times. Current
+time is recorded unless TIMESTAMP is specified."
   (cl-incf (car tree) (or n 1))
   (cond (keys
          (let ((child (radix-tree-lookup (cdr tree) (car keys))))
@@ -115,7 +118,8 @@ TIMESTAMP is specified."
            (setcdr tree (or timestamp company-symbol-after-symbol-session-start-time))))))
 
 (defun company-symbol-after-symbol-tree-search (tree keys &optional threshold)
-  "Search through a completion-tree with KEYS."
+  "Search through a completion-tree with KEYS. KEYS can be a list of
+one or two strings."
   (when (consp tree)
     (if keys
         (company-symbol-after-symbol-tree-search
@@ -127,8 +131,8 @@ TIMESTAMP is specified."
         candidates))))
 
 (defun company-symbol-after-symbol-tree-to-alist (tree)
-  "Transform tree to an alist of the form ((TIMESTAMP OCCURRENCES . KEYS)
-  ...)."
+  "Transform completion-tree to an alist of the form ((TIMESTAMP
+ OCCURRENCES . KEYS) ...)."
   (let (lst)
     (radix-tree-iter-mappings
      (cdr tree)
