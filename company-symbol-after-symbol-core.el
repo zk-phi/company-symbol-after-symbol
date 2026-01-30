@@ -274,27 +274,37 @@ which implies the BOL."
         (puthash (car mode-data) tree cache)))
     cache))
 
+(defun company-symbol-after-symbol--maybe-read-history-file ()
+  (when (and company-symbol-after-symbol-history-file
+             (file-exists-p company-symbol-after-symbol-history-file))
+    (with-temp-buffer
+      (insert-file-contents company-symbol-after-symbol-history-file)
+      (read (current-buffer)))))
+
+(defun company-symbol-after-symbol--parse-history-file-v2 ()
+  (let ((data (company-symbol-after-symbol--maybe-read-history-file)))
+    (when data
+      (cl-case (car data)
+        (2 (cdr data))
+        (t (error "unsupported history file version"))))))
+
 (defun company-symbol-after-symbol-history-save ()
   (when company-symbol-after-symbol-history-file
     (company-symbol-after-symbol-update-cache-other-buffers)
     (company-symbol-after-symbol-update-cache (current-buffer))
-    (let ((data (company-symbol-after-symbol-cache-to-history-v2
-                 company-symbol-after-symbol-cache))
+    (let ((data (cons
+                 2
+                 (company-symbol-after-symbol-cache-to-history-v2
+                  company-symbol-after-symbol-cache)))
           (enable-local-variables nil))
       (with-temp-buffer
-        (prin1 (cons 2 data) (current-buffer))
+        (prin1 data (current-buffer))
         (write-file company-symbol-after-symbol-history-file)))))
 
 (defun company-symbol-after-symbol-history-load ()
-  (when (and company-symbol-after-symbol-history-file
-             (file-exists-p company-symbol-after-symbol-history-file))
-    (let ((data (with-temp-buffer
-                  (insert-file-contents company-symbol-after-symbol-history-file)
-                  (read (current-buffer)))))
-      (cl-case (car data)
-        (2 (setq company-symbol-after-symbol-cache
-                 (company-symbol-after-symbol-cache-from-history-v2 (cdr data))))
-        (t (error "unknown history file version"))))))
+  (setq company-symbol-after-symbol-cache
+        (company-symbol-after-symbol-cache-from-history-v2
+         (company-symbol-after-symbol--parse-history-file-v2))))
 
 (defun company-symbol-after-symbol-initialize ()
   (add-hook 'after-change-functions 'company-symbol-after-symbol-invalidate-cache)
