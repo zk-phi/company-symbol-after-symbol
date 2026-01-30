@@ -17,6 +17,11 @@
   :group 'company-symbol-after-symbol
   :type 'string)
 
+(defcustom company-symbol-after-symbol-minimum-word-length 1
+  "Minimum length of the words to be saved."
+  :group 'company-symbol-after-symbol
+  :type 'integer)
+
 (defcustom company-symbol-after-symbol-maximum-word-length 80
   "Maximum length of words to save. This may be useful to avoid
   long meaningless words (like base64 string) to be saved."
@@ -147,18 +152,24 @@ TIMESTAMP is specified."
   "Get list of all possible 3-grams of the form (SYMBOL1 SYMBOL2
 SYMBOL3) in the buffer. Note that each symbols may combined with
 suffix punctuation characters, like \"foo (\" for an example."
-  (let ((lines (mapcar
-                (lambda (line) (split-string line "\\_<"))
-                (split-string (buffer-substring-no-properties (point-min) (point-max)) "\n")))
-        candidates)
+  (let* ((lines (mapcar
+                 (lambda (line) (split-string line "\\_<"))
+                 (split-string (buffer-substring-no-properties (point-min) (point-max)) "\n")))
+         (symb (concat "\\(?:\\sw\\|\\s_\\)\\{"
+                       (number-to-string company-symbol-after-symbol-minimum-word-length)
+                       ","
+                       (number-to-string company-symbol-after-symbol-maximum-word-length)
+                       "\\}\\_>"))
+         (regex-segment (concat "^\\(?:" symb "\\|$\\)"))
+         (regex-segment-nobol (concat "^" symb))
+         candidates)
     (dolist (line lines)
-      ;; replace the first element (which is a non-symbol string at
-      ;; the BOL) with an empty string
+      ;; replace the first element (which is a non-symbol string at the BOL) with an empty string
       (setcar line "")
       (while (cddr line)
-        (when (and (<= (length (car line)) company-symbol-after-symbol-maximum-word-length)
-                   (<= (length (cadr line)) company-symbol-after-symbol-maximum-word-length)
-                   (<= (length (caddr line)) company-symbol-after-symbol-maximum-word-length))
+        (when (and (string-match regex-segment (car line))
+                   (string-match regex-segment-nobol (cadr line))
+                   (string-match regex-segment-nobol (caddr line)))
           (push (list (car line) (cadr line) (caddr line)) candidates))
         (setq line (cdr line))))
     candidates))
