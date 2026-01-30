@@ -188,7 +188,40 @@ character, like \"foo (\" for example."
     (unless (eq buf (current-buffer))
       (company-symbol-after-symbol-update-cache buf))))
 
-;; ---- save / load cache
+;; ---- interface
+
+(defun company-symbol-after-symbol-search-current-buffer-candidates (prefix1 &optional prefix2)
+  (let ((candidates
+         (company-symbol-after-symbol-search-regex
+          (concat
+           (if prefix1 "" "^\\W*")
+           "\\(" (regexp-quote (or prefix1 "")) (regexp-quote (or prefix2 "")) "\\_<.+?\\_>\\)")
+          1
+          (point))))
+    (company-symbol-after-symbol-filter-by-occurrences
+     (sort candidates 'string<)
+     company-symbol-after-symbol-minimum-current-buffer-occurrences)))
+
+(defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 &optional prefix2)
+  (company-symbol-after-symbol-update-cache-other-buffers)
+  (let ((tree (gethash major-mode company-symbol-after-symbol-cache nil)))
+    (when tree
+      (mapcar (lambda (s)
+                (string-match "^.+\\_>" s) ; drop suffix
+                (concat (or prefix1 "") (or prefix2 "") (match-string 0 s))) ; concat prefix
+              (company-symbol-after-symbol-tree-search
+               tree (cons (or prefix1 "") (if prefix2 (list prefix2) nil))
+               company-symbol-after-symbol-minimum-other-buffers-occurrences)))))
+
+(defun company-symbol-after-symbol-all-completions (prefix1 &optional prefix2)
+  "Get all completions for given prefixes. If only PREFIX1 is
+given, try to find 2-gram candidates. Otherwise try to find
+3-gram candidates. PREFIX1 can be nil for 3-gram completion,
+which implies the BOL."
+  (nconc (company-symbol-after-symbol-search-current-buffer-candidates prefix1 prefix2)
+         (company-symbol-after-symbol-search-other-buffer-candidates prefix1 prefix2)))
+
+;; ---- save and load
 
 (defun company-symbol-after-symbol-cache-to-history-v2 (cache)
   ;; alist[mode -> alist[time -> list[keys]]]
@@ -241,39 +274,6 @@ character, like \"foo (\" for example."
         (2 (setq company-symbol-after-symbol-cache
                  (company-symbol-after-symbol-cache-from-history-v2 (cdr data))))
         (t (error "unknown history file version"))))))
-
-;; ---- interface
-
-(defun company-symbol-after-symbol-search-current-buffer-candidates (prefix1 &optional prefix2)
-  (let ((candidates
-         (company-symbol-after-symbol-search-regex
-          (concat
-           (if prefix1 "" "^\\W*")
-           "\\(" (regexp-quote (or prefix1 "")) (regexp-quote (or prefix2 "")) "\\_<.+?\\_>\\)")
-          1
-          (point))))
-    (company-symbol-after-symbol-filter-by-occurrences
-     (sort candidates 'string<)
-     company-symbol-after-symbol-minimum-current-buffer-occurrences)))
-
-(defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 &optional prefix2)
-  (company-symbol-after-symbol-update-cache-other-buffers)
-  (let ((tree (gethash major-mode company-symbol-after-symbol-cache nil)))
-    (when tree
-      (mapcar (lambda (s)
-                (string-match "^.+\\_>" s) ; drop suffix
-                (concat (or prefix1 "") (or prefix2 "") (match-string 0 s))) ; concat prefix
-              (company-symbol-after-symbol-tree-search
-               tree (cons (or prefix1 "") (if prefix2 (list prefix2) nil))
-               company-symbol-after-symbol-minimum-other-buffers-occurrences)))))
-
-(defun company-symbol-after-symbol-all-completions (prefix1 &optional prefix2)
-  "Get all completions for given prefixes. If only PREFIX1 is
-given, try to find 2-gram candidates. Otherwise try to find
-3-gram candidates. PREFIX1 can be nil for 3-gram completion,
-which implies the BOL."
-  (nconc (company-symbol-after-symbol-search-current-buffer-candidates prefix1 prefix2)
-         (company-symbol-after-symbol-search-other-buffer-candidates prefix1 prefix2)))
 
 (defun company-symbol-after-symbol-initialize ()
   (add-hook 'after-change-functions 'company-symbol-after-symbol-invalidate-cache)
