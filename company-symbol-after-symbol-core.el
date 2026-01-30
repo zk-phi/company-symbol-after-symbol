@@ -159,7 +159,7 @@ suffix punctuation characters, like \"foo (\" for an example."
         (when (and (<= (length (car line)) company-symbol-after-symbol-maximum-word-length)
                    (<= (length (cadr line)) company-symbol-after-symbol-maximum-word-length)
                    (<= (length (caddr line)) company-symbol-after-symbol-maximum-word-length))
-         (push (list (car line) (cadr line) (caddr line)) candidates))
+          (push (list (car line) (cadr line) (caddr line)) candidates))
         (setq line (cdr line))))
     candidates))
 
