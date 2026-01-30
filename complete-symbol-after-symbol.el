@@ -25,7 +25,7 @@
        (point-at-bol))
       (list (match-beginning 0)
             (point)
-            (company-symbol-after-symbol-all-completions (match-string 1))
+            (company-symbol-after-symbol-all-completions (match-string 1) nil)
             :exclusive 'no
             :annotation-function (lambda (_) " 2-gram"))))))
 

@@ -47,7 +47,7 @@
             (or company-symbol-after-symbol--candidates
                 (save-match-data
                   (setq company-symbol-after-symbol--candidates
-                        (company-symbol-after-symbol-all-completions (match-string 1)))))
+                        (company-symbol-after-symbol-all-completions (match-string 1) nil))))
             (match-string 0)))))
     (duplicates t)
     (candidates company-symbol-after-symbol--candidates)))

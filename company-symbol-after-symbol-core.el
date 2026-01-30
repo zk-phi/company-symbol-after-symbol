@@ -189,7 +189,11 @@ suffix punctuation characters, like \"foo (\" for an example."
 
 ;; ---- interface
 
-(defun company-symbol-after-symbol-search-current-buffer-candidates (prefix1 &optional prefix2)
+(defun company-symbol-after-symbol-search-current-buffer-candidates (prefix1 prefix2)
+  "Get 3-gram candidates from the current-buffer with regex
+sesarch. If PREFIX2 is nil, fallback to 2-gram
+candidates. PREFIX1 can be nil for 3-gram completion, which
+implies the BOL."
   (let ((candidates
          (company-symbol-after-symbol-search-regex
           (concat
@@ -201,7 +205,10 @@ suffix punctuation characters, like \"foo (\" for an example."
      (sort candidates 'string<)
      company-symbol-after-symbol-minimum-current-buffer-occurrences)))
 
-(defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 &optional prefix2)
+(defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 prefix2)
+  "Get 3-gram candidates from the completion-table. If PREFIX2 is
+nil, fallback to 2-gram candidates. PREFIX1 can be nil for 3-gram
+completion, which implies the BOL."
   (company-symbol-after-symbol-update-cache-other-buffers)
   (let ((tree (gethash major-mode company-symbol-after-symbol-cache nil)))
     (when tree
@@ -212,7 +219,7 @@ suffix punctuation characters, like \"foo (\" for an example."
                tree (cons (or prefix1 "") (if prefix2 (list prefix2) nil))
                company-symbol-after-symbol-minimum-other-buffers-occurrences)))))
 
-(defun company-symbol-after-symbol-all-completions (prefix1 &optional prefix2)
+(defun company-symbol-after-symbol-all-completions (prefix1 prefix2)
   "Get all completions for given prefixes. If only PREFIX1 is
 given, try to find 2-gram candidates. Otherwise try to find
 3-gram candidates. PREFIX1 can be nil for 3-gram completion,
