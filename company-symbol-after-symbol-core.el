@@ -143,10 +143,10 @@ TIMESTAMP is specified."
 (defvar company-symbol-after-symbol-cache (make-hash-table :test 'eq))
 (defvar-local company-symbol-after-symbol-cache-is-dirty t)
 
-(defun company-symbol-after-symbol-get-all-current-buffer-candidates ()
-  "Get list of all possible (SYMBOL1 SYMBOL2 SYMBOL3)s in the
-buffer. Note that each symbols may combined with suffix
-character, like \"foo (\" for example."
+(defun company-symbol-after-symbol-get-all-current-buffer-3grams ()
+  "Get list of all possible 3-grams of the form (SYMBOL1 SYMBOL2
+SYMBOL3) in the buffer. Note that each symbols may combined with
+suffix punctuation characters, like \"foo (\" for an example."
   (let ((lines (mapcar
                 (lambda (line) (split-string line "\\_<"))
                 (split-string (buffer-substring-no-properties (point-min) (point-max)) "\n")))
@@ -170,11 +170,10 @@ character, like \"foo (\" for example."
     (when (and company-symbol-after-symbol-cache-is-dirty
                (or (derived-mode-p 'prog-mode)
                    (derived-mode-p 'text-mode)))
-      (let ((tree (gethash major-mode company-symbol-after-symbol-cache nil))
-            (items (company-symbol-after-symbol-get-all-current-buffer-candidates)))
-        (unless tree
-          (setq tree (company-symbol-after-symbol-tree-empty))
-          (puthash major-mode tree company-symbol-after-symbol-cache))
+      (let ((tree (or (gethash major-mode company-symbol-after-symbol-cache)
+                      (puthash major-mode (company-symbol-after-symbol-tree-empty)
+                               company-symbol-after-symbol-cache)))
+            (items (company-symbol-after-symbol-get-all-current-buffer-3grams)))
         (dolist (item items)
           (company-symbol-after-symbol-tree-insert tree item))
         (setq company-symbol-after-symbol-cache-is-dirty nil)))))
