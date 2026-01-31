@@ -57,6 +57,14 @@ twice in the same buffer."
   :group 'company-symbol-after-symbol
   :type 'number)
 
+;; ---- utils
+
+(defun complete-symbol-after-symbol--maphash (fn table)
+  (when table
+    (let (res)
+      (maphash (lambda (k v) (push (funcall fn k v) res)) table)
+      res)))
+
 ;; ---- search through buffer
 
 (defun company-symbol-after-symbol-search-regex (regex &optional subexp cursor)
@@ -251,14 +259,18 @@ implies the BOL."
 nil, fallback to 2-gram candidates. PREFIX1 can be nil for 3-gram
 completion, which implies the BOL."
   (company-symbol-after-symbol-update-cache-other-buffers)
-  (let ((tree (gethash major-mode company-symbol-after-symbol-cache nil)))
-    (when tree
-      (mapcar (lambda (s)
-                (string-match "^.+\\_>" s) ; drop suffix
-                (concat (or prefix1 "") (or prefix2 "") (match-string 0 s))) ; concat prefix
-              (company-symbol-after-symbol-tree-search
-               tree (cons (or prefix1 "") (if prefix2 (list prefix2) nil))
-               company-symbol-after-symbol-minimum-other-buffers-occurrences)))))
+  (let ((candidates
+         (apply 'nconc
+                (complete-symbol-after-symbol--maphash
+                 (lambda (file entry)         ; entry is a (modified-p . completion-tree)
+                   (company-symbol-after-symbol-tree-search
+                    (cdr entry) (cons (or prefix1 "") (if prefix2 (list prefix2) nil))
+                    1))
+                 (gethash major-mode company-symbol-after-symbol--cache)))))
+    (mapcar (lambda (s)
+              (string-match "^.+\\_>" s) ; drop suffix
+              (concat (or prefix1 "") (or prefix2 "") (match-string 0 s))) ; concat prefix
+            candidates)))
 
 (defun company-symbol-after-symbol-all-completions (prefix1 prefix2)
   "Get all completions for given prefixes. If only PREFIX1 is
