@@ -67,55 +67,45 @@ is specified, search before/after the point separately."
 ;; ---- completion-tree
 
 ;; a completion-tree is a:
-;; - cons[occurrences, radix-tree[symbol, completion-tree]] (level 1 or 2)
-;; - cons[occurrences, timestamp] (level 3)
-;; level-1 key can be an empty string that indicates a BOL.
-
-(defconst company-symbol-after-symbol-session-start-time (float-time))
-
-(defun company-symbol-after-symbol-tree-empty ()
-  "Allocate an empty completion-tree."
-  (cons 0 nil))
+;; - radix-tree[segment -> cons[t, completion-tree]]
+;; where the first-level SEGMENT may be an empty string that indicates a BOL.
 
 (defun company-symbol-after-symbol-tree-insert (tree keys)
   "Insert an item to a completion-tree destructively. KEYS can be a
-list of 3 words (where 1st element can be an empty string that
+list of 3 segments (where 1st element can be an empty string that
 indicates a BOL)."
-  (cl-incf (car tree) 1)
-  (cond (keys
-         (let ((child (radix-tree-lookup (cdr tree) (car keys))))
-           (unless child
-             (setq child (company-symbol-after-symbol-tree-empty))
-             (setcdr tree (radix-tree-insert (cdr tree) (car keys) child)))
-           (company-symbol-after-symbol-tree-insert child (cdr keys))))
-        (t
-         (setcdr tree company-symbol-after-symbol-session-start-time))))
+  (when keys
+    (let ((child (radix-tree-lookup tree (car keys))))
+      (unless child
+        (setq child (cons t nil))
+        (setq tree (radix-tree-insert tree (car keys) child)))
+      (setcdr child (company-symbol-after-symbol-tree-insert (cdr child) (cdr keys)))))
+  tree)
 
 (defun company-symbol-after-symbol-tree-search (tree keys)
   "Search through a completion-tree with KEYS. KEYS can be a list of
 one or two strings."
-  (when (consp tree)
-    (if keys
-        (company-symbol-after-symbol-tree-search
-         (radix-tree-lookup (cdr tree) (car keys)) (cdr keys))
-      (let (candidates)
-        (radix-tree-iter-mappings (cdr tree) (lambda (k v) (push k candidates)))
-        candidates))))
+  (if keys
+      (company-symbol-after-symbol-tree-search
+       (cdr (radix-tree-lookup tree (car keys)))
+       (cdr keys))
+    (let (candidates)
+      (radix-tree-iter-mappings tree (lambda (k v) (push k candidates)))
+      candidates)))
 
-(defun company-symbol-after-symbol-tree-to-alist (tree)
-  "Transform completion-tree to an alist of the form ((TIMESTAMP
- OCCURRENCES . KEYS) ...)."
+(defun company-symbol-after-symbol-tree-to-list (tree)
+  "Transform completion-tree to list of 3-grams."
   (let (lst)
     (radix-tree-iter-mappings
-     (cdr tree)
+     tree
      (lambda (k v)
-       (cond ((numberp (cdr v))         ; leaf
-              (push (cons (cdr v) (cons (car v) (list k))) lst))
-             (t                         ; node
+       (cond ((cdr v)                   ; node
               (setq lst
                     (nconc lst
-                           (mapcar (lambda (item) (push k (cddr item)) item)
-                                   (company-symbol-after-symbol-tree-to-alist v))))))))
+                           (mapcar (lambda (child) (cons k child))
+                                   (company-symbol-after-symbol-tree-to-list (cdr v))))))
+             (t                         ; leaf
+              (push (list k) lst)))))
     lst))
 
 ;; ---- cache
@@ -128,8 +118,7 @@ one or two strings."
 (defun company-symbol-after-symbol--cache-get-tree (mode file)
   (let ((tbl (or (gethash mode company-symbol-after-symbol--cache)
                  (puthash mode (make-hash-table :test 'equal) company-symbol-after-symbol--cache))))
-    (or (cdr (gethash file tbl))
-        (company-symbol-after-symbol-tree-empty))))
+    (cdr (gethash file tbl))))
 
 (defun company-symbol-after-symbol--cache-update-tree (mode file modified-p tree)
   (let ((tbl (or (gethash mode company-symbol-after-symbol--cache)
@@ -172,7 +161,7 @@ suffix punctuation characters, like \"foo (\" for an example."
       (let ((tree (company-symbol-after-symbol--cache-get-tree major-mode buffer-file-name))
             (items (company-symbol-after-symbol-get-all-current-buffer-3grams)))
         (dolist (item items)
-          (company-symbol-after-symbol-tree-insert tree item))
+          (setq tree (company-symbol-after-symbol-tree-insert tree item)))
         (company-symbol-after-symbol--cache-update-tree
          major-mode buffer-file-name
          company-symbol-after-symbol--buffer-modified tree)
@@ -240,12 +229,12 @@ which implies the BOL."
                  (maphash
                   (lambda (path entry)
                     (mapcar
-                     (lambda (alist-entry)
-                       (let* ((oldvalue (or (gethash (cddr alist-entry) 3grams) '(0 . nil)))
+                     (lambda (3gram)
+                       (let* ((oldvalue (or (gethash 3gram 3grams) '(0 . nil)))
                               (count (1+ (car oldvalue)))
                               (write-flag (or (cdr oldvalue) (car entry))))
-                         (puthash (cddr alist-entry) (cons count write-flag) 3grams)))
-                     (company-symbol-after-symbol-tree-to-alist (cdr entry))))
+                         (puthash 3gram (cons count write-flag) 3grams)))
+                     (company-symbol-after-symbol-tree-to-list (cdr entry))))
                   file-table)))
              company-symbol-after-symbol--cache)
     (let ((new-data
@@ -274,7 +263,7 @@ which implies the BOL."
   (dolist (mode-data data)
     (let ((tree (company-symbol-after-symbol--cache-get-tree (car mode-data) nil)))
       (dolist (item (cdr mode-data))
-        (company-symbol-after-symbol-tree-insert tree item))
+        (setq tree (company-symbol-after-symbol-tree-insert tree item)))
       (company-symbol-after-symbol--cache-update-tree (car mode-data) nil nil tree))))
 
 (defun complete-symbol-after-symbol--upgrade-history-v2-to-v3 (data)
