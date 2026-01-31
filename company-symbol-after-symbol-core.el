@@ -111,7 +111,7 @@ one or two strings."
 ;; ---- cache
 
 ;; hash[mode -> hash[file -> (modified-p . completion-tree)]]
-(defvar company-symbol-after-symbol--cache (make-hash-table :test 'equal))
+(defvar company-symbol-after-symbol--cache (make-hash-table :test 'eq))
 (defvar-local company-symbol-after-symbol-cache-is-dirty t)
 (defvar-local company-symbol-after-symbol--buffer-modified nil)
 
