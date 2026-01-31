@@ -57,6 +57,12 @@ twice in the same buffer."
   :group 'company-symbol-after-symbol
   :type 'number)
 
+(defcustom company-symbol-after-symbol-history-store-capacity 1000
+  "How many 3-grams should be stored in the history file for each
+ major modes."
+  :group 'company-symbol-after-symbol
+  :type 'number)
+
 ;; ---- utils
 
 (defun complete-symbol-after-symbol--maphash (fn table)
@@ -282,41 +288,65 @@ which implies the BOL."
 
 ;; ---- save and load
 
-(defun company-symbol-after-symbol--make-save-data-v2 ()
-  ;; alist[mode -> alist[time -> list[keys]]]
-  (let ((limit (- (float-time) company-symbol-after-symbol-history-store-limit))
-        res)
-    (maphash
-     (lambda (mode tree)
-       (let ((items (company-symbol-after-symbol-tree-to-alist tree))
-             (hash-by-time (make-hash-table :test 'eql)))
-         (dolist (item items)
-           (cl-destructuring-bind (timestamp occurrences . keys) item
-             (when (and (<= limit timestamp)
-                        (<= company-symbol-after-symbol-minimum-other-buffers-occurrences occurrences))
-               (push (cddr item) (gethash (car item) hash-by-time)))))
-         (let (time-list)
-           (maphash (lambda (time items) (push (cons time items) time-list)) hash-by-time)
-           (when time-list
-             (push (cons mode time-list) res)))))
-     company-symbol-after-symbol-cache)
-    res))
+(defun company-symbol-after-symbol--make-save-data-v3 (previous-data)
+  ;; alist[mode -> list[keys]]
+  (let ((table (make-hash-table :test 'eq))) ; table[mode -> table[keys -> (count . write-flag)]]
+    (maphash (lambda (mode file-table)
+               (let ((3grams (or (gethash major-mode table)
+                                 (puthash major-mode (make-hash-table :test 'equal) table))))
+                 (maphash
+                  (lambda (path entry)
+                    (mapcar
+                     (lambda (alist-entry)
+                       (let* ((oldvalue (or (gethash (cddr alist-entry) 3grams) '(0 . nil)))
+                              (count (1+ (car oldvalue)))
+                              (write-flag (or (cdr oldvalue) (car entry))))
+                         (puthash (cddr alist-entry) (cons count write-flag) 3grams)))
+                     (company-symbol-after-symbol-tree-to-alist (cdr entry))))
+                  file-table)))
+             company-symbol-after-symbol--cache)
+    (let ((new-data
+           (complete-symbol-after-symbol--maphash
+            (lambda (mode 3grams)
+              (let* ((3gram-list (complete-symbol-after-symbol--maphash
+                                  (lambda (3gram value)
+                                    (and (>= (car value) 2)
+                                         (cdr value)
+                                         3gram))
+                                  3grams))
+                     (filtered (delq nil 3gram-list)))
+                (cons mode filtered)))
+            table)))
+      ;; merge with previous-data
+      (dolist (mode previous-data)
+        (let ((concatenated (nconc (alist-get (car mode) new-data) (cdr mode))))
+          (delete-dups concatenated)
+          (ignore-errors
+            (setf (nthcdr company-symbol-after-symbol-history-store-capacity concatenated) nil))
+          (setf (alist-get (car mode) new-data) concatenated)))
+      new-data)))
 
-(defun company-symbol-after-symbol--load-saved-data-v2 (data)
-  ;; alist[mode -> alist[time -> list[keys]]]
+(defun company-symbol-after-symbol--load-saved-data-v3 (data)
+  ;; alist[mode -> list[keys]]
   (let ((cache (make-hash-table :test 'eq)))
     (dolist (mode-data data)
       (let ((v2-tree (company-symbol-after-symbol-tree-empty))
             (v3-tree (company-symbol-after-symbol--cache-get-tree (car mode-data) nil)))
-        (dolist (time-data (cdr mode-data))
-          (dolist (item (cdr time-data))
-            (company-symbol-after-symbol-tree-insert
-             v2-tree item
-             company-symbol-after-symbol-minimum-other-buffers-occurrences (car time-data))
-            (company-symbol-after-symbol-tree-insert v3-tree item)))
+        (dolist (item (cdr mode-data))
+          (company-symbol-after-symbol-tree-insert
+           v2-tree item
+           company-symbol-after-symbol-minimum-other-buffers-occurrences)
+          (company-symbol-after-symbol-tree-insert v3-tree item))
         (puthash (car mode-data) v2-tree cache)
         (company-symbol-after-symbol--cache-update-tree (car mode-data) nil nil v3-tree)))
     (setq company-symbol-after-symbol-cache cache)))
+
+(defun complete-symbol-after-symbol--upgrade-history-v2-to-v3 (data)
+  ;; v2: alist[mode -> alist[time -> list[keys]]]
+  ;; v3: alist[mode -> sorted-unique-list[keys]]
+  (mapcar (lambda (mode-data)
+            (cons (car mode-data) (apply 'nconc (mapcar 'cdr (cdr mode-data)))))
+          data))
 
 (defun company-symbol-after-symbol--maybe-read-history-file ()
   (when (and company-symbol-after-symbol-history-file
@@ -325,28 +355,29 @@ which implies the BOL."
       (insert-file-contents company-symbol-after-symbol-history-file)
       (read (current-buffer)))))
 
-(defun company-symbol-after-symbol--parse-history-file-v2 ()
+(defun company-symbol-after-symbol--parse-history-file-v3 ()
   (let ((data (company-symbol-after-symbol--maybe-read-history-file)))
     (when data
       (cl-case (car data)
-        (2 (cdr data))
+        (3 (cdr data))
+        (2 (complete-symbol-after-symbol--upgrade-history-v2-to-v3 (cdr data)))
         (t (error "unsupported history file version"))))))
 
 (defun company-symbol-after-symbol-history-save ()
   (when company-symbol-after-symbol-history-file
     (company-symbol-after-symbol-update-cache-other-buffers)
     (company-symbol-after-symbol-update-cache (current-buffer))
-    (let ((data (cons
-                 2
-                 (company-symbol-after-symbol--make-save-data-v2)))
+    (let ((data (cons 3
+                      (company-symbol-after-symbol--make-save-data-v3
+                       (company-symbol-after-symbol--parse-history-file-v3))))
           (enable-local-variables nil))
       (with-temp-buffer
         (prin1 data (current-buffer))
         (write-file company-symbol-after-symbol-history-file)))))
 
 (defun company-symbol-after-symbol-history-load ()
-  (company-symbol-after-symbol--load-saved-data-v2
-   (company-symbol-after-symbol--parse-history-file-v2)))
+  (company-symbol-after-symbol--load-saved-data-v3
+   (company-symbol-after-symbol--parse-history-file-v3)))
 
 (defun company-symbol-after-symbol-initialize ()
   (add-hook 'after-change-functions 'company-symbol-after-symbol-invalidate-cache)
