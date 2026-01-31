@@ -162,14 +162,10 @@ one or two strings."
 
 ;; ---- cache
 
-;; hash[mode -> completion-tree]
-(defvar company-symbol-after-symbol-cache (make-hash-table :test 'eq))
-(defvar-local company-symbol-after-symbol-cache-is-dirty t)
-(defvar-local company-symbol-after-symbol--buffer-modified nil)
-
-;; v3
 ;; hash[mode -> hash[file -> (modified-p . completion-tree)]]
 (defvar company-symbol-after-symbol--cache (make-hash-table :test 'equal))
+(defvar-local company-symbol-after-symbol-cache-is-dirty t)
+(defvar-local company-symbol-after-symbol--buffer-modified nil)
 
 (defun company-symbol-after-symbol--cache-get-tree (mode file)
   (let ((tbl (or (gethash mode company-symbol-after-symbol--cache)
@@ -211,25 +207,17 @@ suffix punctuation characters, like \"foo (\" for an example."
 (defun company-symbol-after-symbol-update-cache (&optional buffer)
   "Put all symbols in the buffer into
 `company-symbol-after-symbol--cache'."
-  (with-current-buffer (or buffer (current-buffer))
-    (when (and company-symbol-after-symbol-cache-is-dirty
-               (or (derived-mode-p 'prog-mode)
-                   (derived-mode-p 'text-mode)))
-      (let ((v2-tree (or (gethash major-mode company-symbol-after-symbol-cache)
-                         (puthash major-mode (company-symbol-after-symbol-tree-empty)
-                                  company-symbol-after-symbol-cache)))
-            (v3-tree (and buffer-file-name
-                          (company-symbol-after-symbol--cache-get-tree
-                           major-mode buffer-file-name)))
+  (when (and buffer-file-name
+             company-symbol-after-symbol-cache-is-dirty
+             (or (derived-mode-p 'prog-mode) (derived-mode-p 'text-mode)))
+    (with-current-buffer (or buffer (current-buffer))
+      (let ((tree (company-symbol-after-symbol--cache-get-tree major-mode buffer-file-name))
             (items (company-symbol-after-symbol-get-all-current-buffer-3grams)))
         (dolist (item items)
-          (company-symbol-after-symbol-tree-insert v2-tree item)
-          (when v3-tree
-            (company-symbol-after-symbol-tree-insert v3-tree item)))
-        (when v3-tree
-          (company-symbol-after-symbol--cache-update-tree
-           major-mode buffer-file-name
-           company-symbol-after-symbol--buffer-modified v3-tree))
+          (company-symbol-after-symbol-tree-insert tree item))
+        (company-symbol-after-symbol--cache-update-tree
+         major-mode buffer-file-name
+         company-symbol-after-symbol--buffer-modified tree)
         (setq company-symbol-after-symbol-cache-is-dirty nil)))))
 
 (defun company-symbol-after-symbol-invalidate-cache (&rest _)
@@ -328,18 +316,11 @@ which implies the BOL."
 
 (defun company-symbol-after-symbol--load-saved-data-v3 (data)
   ;; alist[mode -> list[keys]]
-  (let ((cache (make-hash-table :test 'eq)))
-    (dolist (mode-data data)
-      (let ((v2-tree (company-symbol-after-symbol-tree-empty))
-            (v3-tree (company-symbol-after-symbol--cache-get-tree (car mode-data) nil)))
-        (dolist (item (cdr mode-data))
-          (company-symbol-after-symbol-tree-insert
-           v2-tree item
-           company-symbol-after-symbol-minimum-other-buffers-occurrences)
-          (company-symbol-after-symbol-tree-insert v3-tree item))
-        (puthash (car mode-data) v2-tree cache)
-        (company-symbol-after-symbol--cache-update-tree (car mode-data) nil nil v3-tree)))
-    (setq company-symbol-after-symbol-cache cache)))
+  (dolist (mode-data data)
+    (let ((tree (company-symbol-after-symbol--cache-get-tree (car mode-data) nil)))
+      (dolist (item (cdr mode-data))
+        (company-symbol-after-symbol-tree-insert tree item))
+      (company-symbol-after-symbol--cache-update-tree (car mode-data) nil nil tree))))
 
 (defun complete-symbol-after-symbol--upgrade-history-v2-to-v3 (data)
   ;; v2: alist[mode -> alist[time -> list[keys]]]
