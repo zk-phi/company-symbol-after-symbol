@@ -151,6 +151,22 @@ one or two strings."
 ;; hash[mode -> completion-tree]
 (defvar company-symbol-after-symbol-cache (make-hash-table :test 'eq))
 (defvar-local company-symbol-after-symbol-cache-is-dirty t)
+(defvar-local company-symbol-after-symbol--buffer-modified nil)
+
+;; v3
+;; hash[mode -> hash[file -> (modified-p . completion-tree)]]
+(defvar company-symbol-after-symbol--cache (make-hash-table :test 'equal))
+
+(defun company-symbol-after-symbol--cache-get-tree (mode file)
+  (let ((tbl (or (gethash mode company-symbol-after-symbol--cache)
+                 (puthash mode (make-hash-table :test 'equal) company-symbol-after-symbol--cache))))
+    (or (cdr (gethash file tbl))
+        (company-symbol-after-symbol-tree-empty))))
+
+(defun company-symbol-after-symbol--cache-update-tree (mode file modified-p tree)
+  (let ((tbl (or (gethash mode company-symbol-after-symbol--cache)
+                 (puthash mode (make-hash-table :test 'equal) company-symbol-after-symbol--cache))))
+    (puthash file (cons modified-p tree) tbl)))
 
 (defun company-symbol-after-symbol-get-all-current-buffer-3grams ()
   "Get list of all possible 3-grams of the form (SYMBOL1 SYMBOL2
@@ -180,21 +196,31 @@ suffix punctuation characters, like \"foo (\" for an example."
 
 (defun company-symbol-after-symbol-update-cache (&optional buffer)
   "Put all symbols in the buffer into
-`company-symbol-after-symbol-cache'."
+`company-symbol-after-symbol--cache'."
   (with-current-buffer (or buffer (current-buffer))
     (when (and company-symbol-after-symbol-cache-is-dirty
                (or (derived-mode-p 'prog-mode)
                    (derived-mode-p 'text-mode)))
-      (let ((tree (or (gethash major-mode company-symbol-after-symbol-cache)
-                      (puthash major-mode (company-symbol-after-symbol-tree-empty)
-                               company-symbol-after-symbol-cache)))
+      (let ((v2-tree (or (gethash major-mode company-symbol-after-symbol-cache)
+                         (puthash major-mode (company-symbol-after-symbol-tree-empty)
+                                  company-symbol-after-symbol-cache)))
+            (v3-tree (and buffer-file-name
+                          (company-symbol-after-symbol--cache-get-tree
+                           major-mode buffer-file-name)))
             (items (company-symbol-after-symbol-get-all-current-buffer-3grams)))
         (dolist (item items)
-          (company-symbol-after-symbol-tree-insert tree item))
+          (company-symbol-after-symbol-tree-insert v2-tree item)
+          (when v3-tree
+            (company-symbol-after-symbol-tree-insert v3-tree item)))
+        (when v3-tree
+          (company-symbol-after-symbol--cache-update-tree
+           major-mode buffer-file-name
+           company-symbol-after-symbol--buffer-modified v3-tree))
         (setq company-symbol-after-symbol-cache-is-dirty nil)))))
 
 (defun company-symbol-after-symbol-invalidate-cache (&rest _)
-  (setq company-symbol-after-symbol-cache-is-dirty t))
+  (setq company-symbol-after-symbol-cache-is-dirty t
+        company-symbol-after-symbol--buffer-modified t))
 
 (defun company-symbol-after-symbol-update-cache-other-buffers ()
   "Update cache for all buffers except for the current buffer."
@@ -265,15 +291,19 @@ which implies the BOL."
     res))
 
 (defun company-symbol-after-symbol--load-saved-data-v2 (data)
+  ;; alist[mode -> alist[time -> list[keys]]]
   (let ((cache (make-hash-table :test 'eq)))
     (dolist (mode-data data)
-      (let ((tree (company-symbol-after-symbol-tree-empty)))
+      (let ((v2-tree (company-symbol-after-symbol-tree-empty))
+            (v3-tree (company-symbol-after-symbol--cache-get-tree (car mode-data) nil)))
         (dolist (time-data (cdr mode-data))
           (dolist (item (cdr time-data))
             (company-symbol-after-symbol-tree-insert
-             tree item
-             company-symbol-after-symbol-minimum-other-buffers-occurrences (car time-data))))
-        (puthash (car mode-data) tree cache)))
+             v2-tree item
+             company-symbol-after-symbol-minimum-other-buffers-occurrences (car time-data))
+            (company-symbol-after-symbol-tree-insert v3-tree item)))
+        (puthash (car mode-data) v2-tree cache)
+        (company-symbol-after-symbol--cache-update-tree (car mode-data) nil nil v3-tree)))
     (setq company-symbol-after-symbol-cache cache)))
 
 (defun company-symbol-after-symbol--maybe-read-history-file ()
