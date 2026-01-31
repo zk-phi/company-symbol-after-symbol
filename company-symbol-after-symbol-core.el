@@ -28,40 +28,16 @@
   :group 'company-symbol-after-symbol
   :type 'integer)
 
-(defcustom company-symbol-after-symbol-minimum-current-buffer-occurrences 1
-  "How many times (at least) candidates from the current-buffer
-must appear. When 2 for an example, \"baz\" is suggested after
-\"foo bar \", if the sequence \"foo bar baz\" appears more than
-twice in the same buffer."
-  :group 'company-symbol-after-symbol
-  :type 'integer)
-
-(defcustom company-symbol-after-symbol-minimum-other-buffers-occurrences 2
-  "How many times (at least) candidates from other-buffers must
-  appear in the same-mode buffers. When 2 for an example, \"baz\"
-  is suggested after \"foo bar \", if the sequence \"foo bar
-  baz\" appears more than twice in the same-mode buffers. Note
-  that the count is NOT carried over across
-  sessions. i.e. candidates must appear more than twice in a
-  single session (not once in a session and once in another
-  session). Once the condition is met, candidates are saved in
-  `company-symbol-after-symbol-history-file' for next sessions."
-  :group 'company-symbol-after-symbol
-  :type 'integer)
-
-(defcustom company-symbol-after-symbol-history-store-limit (* 7 24 60 60)
-  "How long (in seconds) candidates should be stored in the
-  history file after last seen. When 7 days for an example,
-  candidates are deleted if they are unseen for more than 7
-  days."
-  :group 'company-symbol-after-symbol
-  :type 'number)
-
 (defcustom company-symbol-after-symbol-history-store-capacity 1000
   "How many 3-grams should be stored in the history file for each
  major modes."
   :group 'company-symbol-after-symbol
   :type 'number)
+
+(make-obsolete-variable
+ 'company-symbol-after-symbol-history-store-limit
+ "company-symbol-after-symbol-history-store-capacity"
+ "2026-01-31")
 
 ;; ---- utils
 
@@ -88,20 +64,6 @@ is specified, search before/after the point separately."
         (push (match-string-no-properties (or subexp 0)) lst)))
     lst))
 
-(defun company-symbol-after-symbol-filter-by-occurrences (sorted-list threshold)
-  "De-dupe and filter SORTED-LIST by occurrences destructively."
-  (let ((current-count 1) candidates)
-    (while sorted-list
-      (cond ((and (cadr sorted-list) (string= (car sorted-list) (cadr sorted-list)))
-             (pop sorted-list)
-             (cl-incf current-count))
-            (t
-             (if (>= current-count threshold)
-                 (push (pop sorted-list) candidates)
-               (pop sorted-list))
-             (setq current-count 1))))
-    candidates))
-
 ;; ---- completion-tree
 
 ;; a completion-tree is a:
@@ -115,33 +77,29 @@ is specified, search before/after the point separately."
   "Allocate an empty completion-tree."
   (cons 0 nil))
 
-(defun company-symbol-after-symbol-tree-insert (tree keys &optional n timestamp)
+(defun company-symbol-after-symbol-tree-insert (tree keys)
   "Insert an item to a completion-tree destructively. KEYS can be a
 list of 3 words (where 1st element can be an empty string that
-indicates a BOL). When N is specified, repeat N times. Current
-time is recorded unless TIMESTAMP is specified."
-  (cl-incf (car tree) (or n 1))
+indicates a BOL)."
+  (cl-incf (car tree) 1)
   (cond (keys
          (let ((child (radix-tree-lookup (cdr tree) (car keys))))
            (unless child
              (setq child (company-symbol-after-symbol-tree-empty))
              (setcdr tree (radix-tree-insert (cdr tree) (car keys) child)))
-           (company-symbol-after-symbol-tree-insert child (cdr keys) n timestamp)))
+           (company-symbol-after-symbol-tree-insert child (cdr keys))))
         (t
-         (unless (and timestamp (cdr tree) (> (cdr tree) timestamp))
-           (setcdr tree (or timestamp company-symbol-after-symbol-session-start-time))))))
+         (setcdr tree company-symbol-after-symbol-session-start-time))))
 
-(defun company-symbol-after-symbol-tree-search (tree keys &optional threshold)
+(defun company-symbol-after-symbol-tree-search (tree keys)
   "Search through a completion-tree with KEYS. KEYS can be a list of
 one or two strings."
   (when (consp tree)
     (if keys
         (company-symbol-after-symbol-tree-search
-         (radix-tree-lookup (cdr tree) (car keys)) (cdr keys) threshold)
+         (radix-tree-lookup (cdr tree) (car keys)) (cdr keys))
       (let (candidates)
-        (radix-tree-iter-mappings
-         (cdr tree)
-         (lambda (k v) (when (<= (or threshold 0) (car v)) (push k candidates))))
+        (radix-tree-iter-mappings (cdr tree) (lambda (k v) (push k candidates)))
         candidates))))
 
 (defun company-symbol-after-symbol-tree-to-alist (tree)
@@ -244,9 +202,7 @@ implies the BOL."
            "\\(" (regexp-quote (or prefix1 "")) (regexp-quote (or prefix2 "")) "\\_<.+?\\_>\\)")
           1
           (point))))
-    (company-symbol-after-symbol-filter-by-occurrences
-     (sort candidates 'string<)
-     company-symbol-after-symbol-minimum-current-buffer-occurrences)))
+    (delete-dups (sort candidates 'string<))))
 
 (defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 prefix2)
   "Get 3-gram candidates from the completion-table. If PREFIX2 is
@@ -258,8 +214,7 @@ completion, which implies the BOL."
                 (complete-symbol-after-symbol--maphash
                  (lambda (file entry)         ; entry is a (modified-p . completion-tree)
                    (company-symbol-after-symbol-tree-search
-                    (cdr entry) (cons (or prefix1 "") (if prefix2 (list prefix2) nil))
-                    1))
+                    (cdr entry) (cons (or prefix1 "") (if prefix2 (list prefix2) nil))))
                  (gethash major-mode company-symbol-after-symbol--cache)))))
     (mapcar (lambda (s)
               (string-match "^.+\\_>" s) ; drop suffix
