@@ -154,10 +154,10 @@ suffix punctuation characters, like \"foo (\" for an example."
 (defun company-symbol-after-symbol-update-cache (&optional buffer)
   "Put all symbols in the buffer into
 `company-symbol-after-symbol--cache'."
-  (when (and buffer-file-name
-             company-symbol-after-symbol-cache-is-dirty
-             (or (derived-mode-p 'prog-mode) (derived-mode-p 'text-mode)))
-    (with-current-buffer (or buffer (current-buffer))
+  (with-current-buffer (or buffer (current-buffer))
+    (when (and buffer-file-name
+               company-symbol-after-symbol-cache-is-dirty
+               (or (derived-mode-p 'prog-mode) (derived-mode-p 'text-mode)))
       (let ((tree (company-symbol-after-symbol--cache-get-tree major-mode buffer-file-name))
             (items (company-symbol-after-symbol-get-all-current-buffer-3grams)))
         (dolist (item items)
