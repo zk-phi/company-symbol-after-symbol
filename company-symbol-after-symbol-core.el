@@ -184,14 +184,11 @@ suffix punctuation characters, like \"foo (\" for an example."
 sesarch. If PREFIX2 is nil, fallback to 2-gram
 candidates. PREFIX1 can be nil for 3-gram completion, which
 implies the BOL."
-  (let ((candidates
-         (company-symbol-after-symbol-search-regex
-          (concat
-           (if prefix1 "" "^\\W*")
-           "\\(" (regexp-quote (or prefix1 "")) (regexp-quote (or prefix2 "")) "\\_<.+?\\_>\\)")
-          1
-          (point))))
-    (delete-dups (sort candidates 'string<))))
+  (let ((query
+         (concat
+          (if prefix1 "" "^\\W*")
+          "\\(" (regexp-quote (or prefix1 "")) (regexp-quote (or prefix2 "")) "\\_<.+?\\_>\\)")))
+    (company-symbol-after-symbol-search-regex query 1 (point))))
 
 (defun company-symbol-after-symbol-search-other-buffer-candidates (prefix1 prefix2)
   "Get 3-gram candidates from the completion-table. If PREFIX2 is
@@ -215,8 +212,11 @@ completion, which implies the BOL."
 given, try to find 2-gram candidates. Otherwise try to find
 3-gram candidates. PREFIX1 can be nil for 3-gram completion,
 which implies the BOL."
-  (nconc (company-symbol-after-symbol-search-current-buffer-candidates prefix1 prefix2)
-         (company-symbol-after-symbol-search-other-buffer-candidates prefix1 prefix2)))
+  (let ((all-candidates
+         (nconc
+          (company-symbol-after-symbol-search-current-buffer-candidates prefix1 prefix2)
+          (company-symbol-after-symbol-search-other-buffer-candidates prefix1 prefix2))))
+    (delete-dups (sort all-candidates 'string<))))
 
 ;; ---- save and load
 
